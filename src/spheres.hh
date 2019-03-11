@@ -15,20 +15,48 @@
    limitations under the License.
 
 **************************************************************************/
-#include <devel/init.hh>
+#ifndef INCLUDED_spheres_hh
+#define INCLUDED_spheres_hh
 
-#include <iostream>
+#include <bbutils.hh>
+#include <string>
 
-#include <pepdockopt.hh>
-
-int main(int argc, char *argv[])
+namespace pepdockopt
 {
-    devel::init(argc, argv);
-    std::cout << "Start..." << std::endl;
-    
-    size_t thread_num = 4;
-    
-    pepdockopt::PepDockOpt obj;
-    obj.init();
-    obj.set_number_of_threads(thread_num);
+namespace spheres
+{
+
+struct sphere_info
+{
+    double x;
+    double y;
+    double z;
+    double r;
+};
+
+struct box
+{
+    std::pair<double, double> x;
+    std::pair<double, double> y;
+    std::pair<double, double> z;
+};
+
+class box_trans
+{
+private:
+    box space;
+
+public:
+    std::vector<sphere_info> spheres;
+    bbutils::distribution_3d dist;
+    double max_r;
+
+    box_trans();
+    void load_data(std::string fname, size_t steps);
+    bbutils::distribution_3d make_cdf(size_t steps);
+};
+
 }
+}
+
+#endif

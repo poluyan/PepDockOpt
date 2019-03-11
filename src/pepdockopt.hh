@@ -15,20 +15,39 @@
    limitations under the License.
 
 **************************************************************************/
-#include <devel/init.hh>
+#ifndef INCLUDED_pepdockopt_hh
+#define INCLUDED_pepdockopt_hh
+
+#include <core/pose/Pose.hh>
+
+#include <complex.hh>
+#include <spheres.hh>
 
 #include <iostream>
 
-#include <pepdockopt.hh>
-
-int main(int argc, char *argv[])
+namespace pepdockopt
 {
-    devel::init(argc, argv);
-    std::cout << "Start..." << std::endl;
+
+class PepDockOpt
+{
+    int threads_number;
+    core::pose::Pose pose;
+    core::pose::Pose native;
+    pepdockopt::ComplexInfoNseq param_list;
     
-    size_t thread_num = 4;
+    std::vector<pepdockopt::opt_element> opt_vector;
+    pepdockopt::ranges peptide_ranges;
+    pepdockopt::ranges protein_ranges;
     
-    pepdockopt::PepDockOpt obj;
-    obj.init();
-    obj.set_number_of_threads(thread_num);
+    pepdockopt::spheres::box_trans trans_spheres_obj;
+public:
+    PepDockOpt();
+    void init();
+    void set_number_of_threads(size_t n);
+
+};
+
 }
+
+
+#endif

@@ -34,6 +34,8 @@ class ComplexInfoNseq
 {
 public:
     ComplexInfoNseq();
+    
+    void init();
     void set_pose(core::pose::Pose const &_pose);
     void show_peptide_info();
 

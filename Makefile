@@ -36,7 +36,10 @@ OBJ_RELEASE = \
 	$(OBJDIR_RELEASE)/main.o \
 	$(OBJDIR_RELEASE)/get_dof.o \
 	$(OBJDIR_RELEASE)/opt.o \
-	$(OBJDIR_RELEASE)/complex.o 
+	$(OBJDIR_RELEASE)/pepdockopt.o \
+	$(OBJDIR_RELEASE)/complex.o \
+	$(OBJDIR_RELEASE)/spheres.o \
+	$(OBJDIR_RELEASE)/bbutils.o 
 	
 OBJ_RELEASE_MAIN = $(OBJDIR_RELEASE)/main.o
 SHAREDLIB = $(filter-out $(OBJ_RELEASE_MAIN), $(OBJ_RELEASE))
@@ -44,7 +47,10 @@ SHAREDLIB = $(filter-out $(OBJ_RELEASE_MAIN), $(OBJ_RELEASE))
 HEADERS = \
 	$(SRCPATH)/get_dof.hh \
 	$(SRCPATH)/opt.hh \
-	$(SRCPATH)/complex.hh 
+	$(SRCPATH)/pepdockopt.hh \
+	$(SRCPATH)/complex.hh \
+	$(SRCPATH)/spheres.hh \
+	$(SRCPATH)/bbutils.hh 
 
 all: release
 
@@ -87,5 +93,14 @@ $(OBJDIR_RELEASE)/opt.o: $(SRCPATH)/opt.cc
 
 $(OBJDIR_RELEASE)/complex.o: $(SRCPATH)/complex.cc
 	$(CPP) $(CPPFLAGSLIB) $(CPPFLAGS) $(IS) $(CPPFLAGSEXTRA) $(INCLUDE) $(SRCPATH)/complex.cc -o $(OBJDIR_RELEASE)/complex.o
+
+$(OBJDIR_RELEASE)/pepdockopt.o: $(SRCPATH)/pepdockopt.cc
+	$(CPP) $(CPPFLAGSLIB) $(CPPFLAGS) $(IS) $(CPPFLAGSEXTRA) $(INCLUDE) $(SRCPATH)/pepdockopt.cc -o $(OBJDIR_RELEASE)/pepdockopt.o
+
+$(OBJDIR_RELEASE)/bbutils.o: $(SRCPATH)/bbutils.cc
+	$(CPP) -I ./src $(CPPFLAGSLIB) $(CPPFLAGS) $(SRCPATH)/bbutils.cc -o $(OBJDIR_RELEASE)/bbutils.o
+
+$(OBJDIR_RELEASE)/spheres.o: $(SRCPATH)/spheres.cc
+	$(CPP) -I ./src $(CPPFLAGSLIB) $(CPPFLAGS) $(SRCPATH)/spheres.cc -o $(OBJDIR_RELEASE)/spheres.o
 
 -include $(OBJ_RELEASE:.o=.d)

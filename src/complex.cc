@@ -15,14 +15,6 @@
    limitations under the License.
 
 **************************************************************************/
-#include <core/pose/util.hh>
-#include <core/pose/Pose.hh>
-#include <core/import_pose/import_pose.hh>
-
-#include <basic/options/keys/in.OptionKeys.gen.hh>
-#include <basic/options/keys/frags.OptionKeys.gen.hh>
-#include <basic/options/option.hh>
-
 #include <protocols/simple_moves/DeleteChainMover.hh>
 
 #include <core/pose/annotated_sequence.hh>
@@ -47,30 +39,7 @@ namespace pepdockopt
 
 ComplexInfoNseq::ComplexInfoNseq()
 {
-    core::pose::Pose input, native;
-    if(basic::options::option[basic::options::OptionKeys::in::file::s].user())
-    {
-        std::string fname = basic::options::option[basic::options::OptionKeys::in::file::s].value_string();
-        std::cout << "input pose " << fname << std::endl;
-        core::import_pose::pose_from_file(input, fname);
-        input.dump_pdb("output/pdb/input.pdb");
-    }
-    else
-    {
-        std::cout << "native pose not found" << std::endl;
-    }
-    if(basic::options::option[basic::options::OptionKeys::in::file::native].user())
-    {
-        std::string fname = basic::options::option[basic::options::OptionKeys::in::file::native].value_string();
-        std::cout << "native pose " << fname << std::endl;
-        core::import_pose::pose_from_file(native, fname);
-        native.dump_pdb("output/pdb/native.pdb");
-    }
-    else
-    {
-        std::cout << "native pose not found" << std::endl;
-    }
-    set_pose(input);
+
 }
 
 void ComplexInfoNseq::set_pose(core::pose::Pose const &_pose)

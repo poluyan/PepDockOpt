@@ -15,28 +15,24 @@
    limitations under the License.
 
 **************************************************************************/
-#include <devel/init.hh>
+#ifndef INCLUDED_bbtools_hh
+#define INCLUDED_bbtools_hh
 
-#include <iostream>
-#include <vector>
-#include <random>
-#include <limits>
+#include <core/pose/util.hh>
+#include <core/pose/Pose.hh>
 
-#include <pepdockopt.hh>
-
-int main(int argc, char *argv[])
+namespace pepdockopt
 {
-    devel::init(argc, argv);
-    std::cout << "Start..." << std::endl;
+namespace bbtools
+{
 
-    size_t thread_num = 4;
+core::Real to_positive_radians(core::Real radian);
+core::Real to_negative_radians(core::Real radian);
+core::Real normalize_to_mpi_to_ppi(core::Real radian);
+void make_ideal_peptide(core::pose::Pose& ideal_peptide, const core::pose::Pose& peptide);
+void to_centroid(core::pose::Pose &pose);
 
-    pepdockopt::PepDockOpt obj;
-    obj.init(thread_num);
-    
-//    std::vector<double> lb(100,-100);
-//    std::vector<double> ub(100,100);
-//    mc obj1(lb, ub, 10000);
-//    obj1.FitnessFunction = &f1;
-//    obj1.run();
 }
+}
+
+#endif

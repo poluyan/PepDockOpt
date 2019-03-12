@@ -20,8 +20,16 @@
 
 #include <core/pose/Pose.hh>
 
+#include <core/scoring/Energies.hh>
+#include <core/scoring/ScoreFunction.hh>
+#include <core/scoring/ScoreFunctionFactory.hh>
+
+#include <protocols/rigid/RigidBodyMover.hh>
+
 #include <complex.hh>
 #include <spheres.hh>
+
+#include <quantile.hh>
 
 #include <iostream>
 
@@ -30,21 +38,36 @@ namespace pepdockopt
 
 class PepDockOpt
 {
+protected:
     int threads_number;
-    core::pose::Pose pose;
+    
+    std::vector<core::pose::Pose> pose;
     core::pose::Pose native;
     pepdockopt::ComplexInfoNseq param_list;
+    
+    std::vector<core::scoring::ScoreFunctionOP> score_func;
+    std::vector<protocols::rigid::RigidBodyDeterministicSpinMover> SpinMover;
+    std::vector<core::kinematics::Jump> FlexibleJumps;
+    std::vector<core::Vector> InitPeptidePositions;
+    std::vector<core::kinematics::RT::Matrix> InitRms;
+    std::vector<core::kinematics::Stub> UpstreamStubs;
     
     std::vector<pepdockopt::opt_element> opt_vector;
     pepdockopt::ranges peptide_ranges;
     pepdockopt::ranges protein_ranges;
     
+    std::vector<std::shared_ptr<trie_based::TrieBased<trie_based::NodeCount<int>,int>>> phipsi_rama2_sample;
+    std::vector<std::shared_ptr<empirical_quantile::ImplicitQuantile<int, double>>> phipsi_rama2_quantile;
+    std::vector<std::shared_ptr<empirical_quantile::ImplicitQuantile<int, double>>> omega_quantile;
+    
     pepdockopt::spheres::box_trans trans_spheres_obj;
+    
+    void set_score_function();
 public:
     PepDockOpt();
-    void init();
-    void set_number_of_threads(size_t n);
-
+    void init(size_t _threads_number);
+    
+    std::vector<double> get_position(); 
 };
 
 }

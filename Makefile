@@ -35,22 +35,31 @@ OBJDIR_RELEASE = obj/Release
 OBJ_RELEASE = \
 	$(OBJDIR_RELEASE)/main.o \
 	$(OBJDIR_RELEASE)/get_dof.o \
+	$(OBJDIR_RELEASE)/transform.o \
 	$(OBJDIR_RELEASE)/opt.o \
 	$(OBJDIR_RELEASE)/pepdockopt.o \
+	$(OBJDIR_RELEASE)/dunbrackdata.o \
+	$(OBJDIR_RELEASE)/bbdep_sm.o \
 	$(OBJDIR_RELEASE)/complex.o \
 	$(OBJDIR_RELEASE)/spheres.o \
+	$(OBJDIR_RELEASE)/bbtools.o \
 	$(OBJDIR_RELEASE)/bbutils.o 
 	
 OBJ_RELEASE_MAIN = $(OBJDIR_RELEASE)/main.o
 SHAREDLIB = $(filter-out $(OBJ_RELEASE_MAIN), $(OBJ_RELEASE))
 
 HEADERS = \
+	$(SRCPATH)/bbdep_sm.hh \
+	$(SRCPATH)/dunbrackdata.hh \
 	$(SRCPATH)/get_dof.hh \
 	$(SRCPATH)/opt.hh \
+	$(SRCPATH)/data_io.hh \
 	$(SRCPATH)/pepdockopt.hh \
 	$(SRCPATH)/complex.hh \
+	$(SRCPATH)/transform.hh \
 	$(SRCPATH)/spheres.hh \
-	$(SRCPATH)/bbutils.hh 
+	$(SRCPATH)/bbutils.hh \
+	$(SRCPATH)/bbtools.hh 
 
 all: release
 
@@ -102,5 +111,17 @@ $(OBJDIR_RELEASE)/bbutils.o: $(SRCPATH)/bbutils.cc
 
 $(OBJDIR_RELEASE)/spheres.o: $(SRCPATH)/spheres.cc
 	$(CPP) -I ./src $(CPPFLAGSLIB) $(CPPFLAGS) $(SRCPATH)/spheres.cc -o $(OBJDIR_RELEASE)/spheres.o
+
+$(OBJDIR_RELEASE)/transform.o: $(SRCPATH)/transform.cc
+	$(CPP) $(CPPFLAGSLIB) $(CPPFLAGS) $(IS) $(CPPFLAGSEXTRA) $(INCLUDE) $(SRCPATH)/transform.cc -o $(OBJDIR_RELEASE)/transform.o
+
+$(OBJDIR_RELEASE)/dunbrackdata.o: $(SRCPATH)/dunbrackdata.cc
+	$(CPP) $(CPPFLAGSLIB) $(CPPFLAGS) $(IS) $(CPPFLAGSEXTRA) $(INCLUDE) $(SRCPATH)/dunbrackdata.cc -o $(OBJDIR_RELEASE)/dunbrackdata.o
+
+$(OBJDIR_RELEASE)/bbdep_sm.o: $(SRCPATH)/bbdep_sm.cc
+	$(CPP) $(CPPFLAGSLIB) $(CPPFLAGS) $(IS) $(CPPFLAGSEXTRA) $(INCLUDE) $(SRCPATH)/bbdep_sm.cc -o $(OBJDIR_RELEASE)/bbdep_sm.o
+
+$(OBJDIR_RELEASE)/bbtools.o: $(SRCPATH)/bbtools.cc
+	$(CPP) $(CPPFLAGSLIB) $(CPPFLAGS) $(IS) $(CPPFLAGSEXTRA) $(INCLUDE) $(SRCPATH)/bbtools.cc -o $(OBJDIR_RELEASE)/bbtools.o
 
 -include $(OBJ_RELEASE:.o=.d)

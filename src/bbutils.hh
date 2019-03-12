@@ -37,33 +37,35 @@ struct distribution_1d
 
 struct distribution_2d
 {
-	//std::deque<std::deque<double>> pdf;
-	std::deque<std::deque<double>> row_dist;
-	std::deque<double> col_dist;
-	std::vector<std::deque<double>> grid;
+    //std::deque<std::deque<double>> pdf;
+    std::deque<std::deque<double>> row_dist;
+    std::deque<double> col_dist;
+    std::vector<std::deque<double>> grid;
 };
 
 struct distribution_3d
 {
-	//std::deque<std::deque<std::deque<double> > > pdf;
-	std::deque<double> col_dist;
-	std::deque<std::deque<double> > row_dist1;
-	std::deque<std::deque<std::deque<double>>>row_dist2;
-	std::vector<std::deque<double> > grid;
+    //std::deque<std::deque<std::deque<double> > > pdf;
+    std::deque<double> col_dist;
+    std::deque<std::deque<double> > row_dist1;
+    std::deque<std::deque<std::deque<double>>>row_dist2;
+    std::vector<std::deque<double> > grid;
 };
 
 struct distribution_4d
 {
-	//std::deque<std::deque<std::deque<std::deque<double>> > > pdf;
-	std::deque<double> col_dist;
-	std::deque<std::deque<double> > row_dist1;
-	std::deque<std::deque<std::deque<double>>>row_dist2;
-	std::deque<std::deque<std::deque<std::deque<double>>>>row_dist3;
-	std::vector< std::deque<double> > grid;
+    //std::deque<std::deque<std::deque<std::deque<double>> > > pdf;
+    std::deque<double> col_dist;
+    std::deque<std::deque<double> > row_dist1;
+    std::deque<std::deque<std::deque<double>>>row_dist2;
+    std::deque<std::deque<std::deque<std::deque<double>>>>row_dist3;
+    std::vector< std::deque<double> > grid;
 };
 
 double get_1d_from_dst(const distribution_1d &dst, double value);
 double get_inverse_1d_from_dst(const distribution_1d &dst, double value);
+
+std::vector<double> get_3d_from_dst(const distribution_3d &dst, const std::vector<double> &values);
 
 }
 }

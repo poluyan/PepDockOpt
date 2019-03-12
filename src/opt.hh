@@ -60,6 +60,7 @@ struct ranges
     std::tuple<bool, size_t, size_t> omega;
     std::tuple<bool, size_t, size_t> chi;
 
+    bool do_quaternion;
     bool do_phipsi;
     bool do_omega;
     bool do_chi;

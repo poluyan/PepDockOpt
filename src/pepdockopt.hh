@@ -61,6 +61,8 @@ protected:
     std::vector<core::scoring::ScoreFunctionOP> score_func;
         
     std::vector<pepdockopt::opt_element> opt_vector;
+    std::vector<double> lb;
+    std::vector<double> ub;
     
     std::vector<std::shared_ptr<trie_based::TrieBased<trie_based::NodeCount<int>,int>>> phipsi_rama2_sample;
     std::vector<std::shared_ptr<empirical_quantile::ImplicitQuantile<int, double>>> phipsi_rama2_quantile;
@@ -73,6 +75,7 @@ public:
     PepDockOpt();
     void init(size_t _threads_number);
     void set_opt();
+    void start_position();
     
     std::vector<double> get_position(std::vector<double> _lb, std::vector<double> _ub, double width, std::pair<size_t, size_t> spheres_number); 
 };

@@ -27,6 +27,7 @@
 #include <pepdockopt.hh>
 #include <complex.hh>
 #include <transform.hh>
+#include <cso.hh>
 
 #include <vector>
 #include <random>
@@ -40,16 +41,12 @@ PepDockOpt::PepDockOpt() {}
 
 double Quadratic_ValueSimple2(std::vector<double> x,
                               core::pose::Pose& pose,
-                              protocols::rigid::RigidBodyDeterministicSpinMover& SpinMover,
+                              PoseShift &shift_params,
                               std::vector<opt_element> &opt_vector,
-                              core::kinematics::Jump &flexible_jump,
-                              core::kinematics::Stub &upstream_stub,
-                              core::Vector &init_peptide_position,
-                              core::kinematics::RT::Matrix &init_rm,
                               const ComplexInfoNseq &complex_stuff,
                               double width,
-                              const pepdockopt::ranges peptide_ranges,
-                              const spheres::box_trans trans_spheres_obj,
+                              const pepdockopt::ranges &peptide_ranges,
+                              const spheres::box_trans &trans_spheres_obj,
                               const std::pair<size_t, size_t> sphere_number)
 {
     double pi = numeric::NumericTraits<core::Real>::pi();
@@ -61,38 +58,30 @@ double Quadratic_ValueSimple2(std::vector<double> x,
     x = transform::peptide_quaternion(x, opt_vector, opt_vector.size());
     x = transform::twospheres(x, opt_vector.size(), trans_spheres_obj);
 
-//    for(size_t i = 0, end = opt_vector.size(); i < end; i++)
-//    {
-//        pose.set_dof(opt_vector[i].dofid, x[i]);
-//        std::cout << i << '\t' << x[i] << std::endl;
-//    }
-//    for(auto i : x)
-//        std::cout << i << std::endl;
-
     ///
 
-    core::Vector new_position = init_peptide_position;
+    core::Vector new_position = shift_params.InitPeptidePosition;
     new_position.at(0) = x[opt_vector.size()];
     new_position.at(1) = x[opt_vector.size() + 1];
     new_position.at(2) = x[opt_vector.size() + 2];
 
-    flexible_jump.reset();
+    shift_params.FlexibleJump.reset();
 
-    flexible_jump.set_rotation(init_rm);
-    pose.set_jump(pose.num_jump(), flexible_jump);
-    
+    shift_params.FlexibleJump.set_rotation(shift_params.InitRm);
+    pose.set_jump(pose.num_jump(), shift_params.FlexibleJump);
+
     numeric::Real current_distance(pose.residue(complex_stuff.get_peptide_first_index()).xyz("CA").distance(new_position));
-    flexible_jump.translation_along_axis(upstream_stub, new_position - pose.residue(complex_stuff.get_peptide_first_index()).xyz("CA"), current_distance);
-    pose.set_jump(pose.num_jump(), flexible_jump);
-    
+    shift_params.FlexibleJump.translation_along_axis(shift_params.UpstreamStub, new_position - pose.residue(complex_stuff.get_peptide_first_index()).xyz("CA"), current_distance);
+    pose.set_jump(pose.num_jump(), shift_params.FlexibleJump);
+
     core::Vector peptide_c_alpha_centroid(pose.residue(complex_stuff.get_peptide_first_index()).xyz("CA"));
     core::Vector axis(x[opt_vector.size() + 3], x[opt_vector.size() + 4], x[opt_vector.size() + 5]);
 
-    SpinMover.rot_center(peptide_c_alpha_centroid);
-    SpinMover.spin_axis(axis);
-    SpinMover.angle_magnitude(x.back());
-    SpinMover.apply(pose);
-    
+    shift_params.SpinMover.rot_center(peptide_c_alpha_centroid);
+    shift_params.SpinMover.spin_axis(axis);
+    shift_params.SpinMover.angle_magnitude(x.back());
+    shift_params.SpinMover.apply(pose);
+
     ///
 
     std::vector<double> exponential_center =
@@ -176,7 +165,7 @@ public:
         std::vector<double> dx(lb.size());
         for(size_t i = 0; i != dx.size(); i++)
         {
-            dx[i] = (ub[i] - lb[i])/100.0;
+            dx[i] = (ub[i] - lb[i])/1000.0;
         }
         for(size_t fe_count = 0; fe_count != fe_max; fe_count++)
         {
@@ -215,7 +204,7 @@ public:
             }
             theta *= dtheta;
             for(size_t i = 0; i != dim; i++)
-                dx[i] -= ((ub[i] - lb[i])/100.0) / fe_max;
+                dx[i] -= ((ub[i] - lb[i])/1000.0) / fe_max;
         }
     }
     void set_generator(std::mt19937_64& _generator)
@@ -241,10 +230,10 @@ private:
     std::vector<double> ub;
 
     std::mt19937_64 generator;
-};
+};*/
 
-*/
-/*std::vector<double> PepDockOpt::get_position(std::vector<double> _lb, std::vector<double> _ub, double width, std::pair<size_t, size_t> spheres_number)
+
+std::vector<double> PepDockOpt::get_position(std::vector<double> _lb, std::vector<double> _ub, double width, std::pair<size_t, size_t> spheres_number)
 {
     std::vector<double> start(_lb.size());
     std::vector<double> start_temp(start.size());
@@ -261,28 +250,57 @@ private:
         start[j] = distribution(generator_);
     }
 
-    mc obj1(_lb, _ub, 1e5);
+    /*mc obj1(_lb, _ub, 1e5);
     obj1.set_generator(generator_);
     do
     {
         obj1.run(pose.front(),
-                 SpinMover.front(),
+                 pose_shift.front().SpinMover,
                  opt_vector,
-                 FlexibleJumps.front(),
-                 UpstreamStubs.front(),
-                 InitPeptidePositions.front(),
-                 InitRms.front(),
+                 pose_shift.front().FlexibleJump,
+                 pose_shift.front().UpstreamStub,
+                 pose_shift.front().InitPeptidePosition,
+                 pose_shift.front().InitRm,
                  param_list,
                  width,
                  peptide_ranges,
                  trans_spheres_obj,
                  spheres_number);
         //std::cout << obj1.get_best() << std::endl;
-        //start = obj1.get_best_vector();
+        start = obj1.get_best_vector();
+    }
+    while(obj1.get_best() > -1.05);*/
+
+    pepdockopt::cso::CSO obj1(1000, start.size(), 0.01, 1e6, generator_);
+    obj1.FitnessFunction = std::bind(&Quadratic_ValueSimple2,
+                                     std::placeholders::_1,
+                                     pose.front(),
+                                     pose_shift.front(),
+                                     opt_vector,
+                                     param_list,
+                                     width,
+                                     peptide_ranges,
+                                     trans_spheres_obj,
+                                     spheres_number);
+    do
+    {
+        obj1.set_bounds(lb, ub);
+        obj1.init();
+        obj1.optimization();
+        std::cout << obj1.get_best() << std::endl;
+        start = obj1.get_best_vector();
+        //std::cin.get();
     }
     while(obj1.get_best() > -1.05);
+
+    //std::function<double(std::vector<double>)> FitnessFunction = std::bind(&lol, std::placeholders::_1);
+    /*std::function<double(std::vector<double>)> FitnessFunction = std::bind(&lol2,
+            std::placeholders::_1,
+            pose.front(),
+            pose_shift);*/
+
     return start;
-}*/
+}
 
 void PepDockOpt::set_score_function()
 {
@@ -340,7 +358,7 @@ void PepDockOpt::init(size_t _threads_number)
 
     for(auto &i : pose)
         i = param_list.get_pose_complex(); //param_list.get_peptide();
-        
+
     pose_shift.resize(threads_number);
     for(int i = 0; i != threads_number; i++)
     {
@@ -390,7 +408,8 @@ void PepDockOpt::set_opt()
 
 
     //
-    std::vector<double> lb, ub;
+    lb.clear();
+    ub.clear();
     size_t k = 0;
     for(size_t i = 0; i < peptide_mc_p_info.size(); i++, k++)
     {
@@ -440,28 +459,16 @@ void PepDockOpt::set_opt()
 
     int dim = opt_vector.size() + 7;
     std::cout << "dim = " << dim << std::endl;
+}
 
+void PepDockOpt::start_position()
+{
     std::pair<size_t, size_t> spheres_number = std::make_pair(0, 1);
 
-    std::vector<double> xx(dim, 0.4);
-    Quadratic_ValueSimple2(xx,
-                           pose.front(),
-                           pose_shift.front().SpinMover,
-                           opt_vector,
-                           pose_shift.front().FlexibleJump,
-                           pose_shift.front().UpstreamStub,
-                           pose_shift.front().InitPeptidePosition,
-                           pose_shift.front().InitRm,
-                           param_list,
-                           0.1,
-                           peptide_ranges,
-                           trans_spheres_obj,
-                           spheres_number);
-
-    /*std::mt19937_64 generator_;
+    std::mt19937_64 generator_;
     generator_.seed(1);
 
-    std::vector<double> start(lb.size());
+    std::vector<double> start(opt_vector.size() + 7);
 
     std::vector<double> sphere_center1 = {trans_spheres_obj.spheres[0].x, trans_spheres_obj.spheres[0].y, trans_spheres_obj.spheres[0].z};
     std::vector<double> sphere_center2 = {trans_spheres_obj.spheres[1].x, trans_spheres_obj.spheres[1].y, trans_spheres_obj.spheres[1].z};
@@ -469,7 +476,7 @@ void PepDockOpt::set_opt()
     double rez = 0;
     for(size_t i = 0; i != start.size(); i++)
         rez += std::pow(sphere_center1[i] - sphere_center2[i], 2.0);
-    double width = 100.0/rez;//20.0/rez;
+    double width = 20.0/rez;//20.0/rez;
 
     size_t N = 1e7;
 
@@ -495,8 +502,7 @@ void PepDockOpt::set_opt()
     std::vector<std::vector<double>> best_samples;
     //samples[0] = start;
 
-
-    //get_position(lb, ub, width, spheres_number);*/
+    get_position(lb, ub, width, spheres_number);
 
 //    std::vector<double> gridN(start.size());
 //    gridN[0] = 8;//psi

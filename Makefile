@@ -53,6 +53,7 @@ HEADERS = \
 	$(SRCPATH)/dunbrackdata.hh \
 	$(SRCPATH)/get_dof.hh \
 	$(SRCPATH)/opt.hh \
+	$(SRCPATH)/cso.hh \
 	$(SRCPATH)/data_io.hh \
 	$(SRCPATH)/pepdockopt.hh \
 	$(SRCPATH)/complex.hh \

@@ -35,6 +35,15 @@
 
 namespace pepdockopt
 {
+    
+struct PoseShift
+{
+    protocols::rigid::RigidBodyDeterministicSpinMover SpinMover;
+    core::kinematics::Jump FlexibleJump;
+    core::Vector InitPeptidePosition;
+    core::kinematics::RT::Matrix InitRm;
+    core::kinematics::Stub UpstreamStub;
+};
 
 class PepDockOpt
 {
@@ -43,18 +52,15 @@ protected:
     
     std::vector<core::pose::Pose> pose;
     core::pose::Pose native;
+    
     pepdockopt::ComplexInfoNseq param_list;
-    
-    std::vector<core::scoring::ScoreFunctionOP> score_func;
-    std::vector<protocols::rigid::RigidBodyDeterministicSpinMover> SpinMover;
-    std::vector<core::kinematics::Jump> FlexibleJumps;
-    std::vector<core::Vector> InitPeptidePositions;
-    std::vector<core::kinematics::RT::Matrix> InitRms;
-    std::vector<core::kinematics::Stub> UpstreamStubs;
-    
-    std::vector<pepdockopt::opt_element> opt_vector;
     pepdockopt::ranges peptide_ranges;
     pepdockopt::ranges protein_ranges;
+    std::vector<PoseShift> pose_shift;
+    
+    std::vector<core::scoring::ScoreFunctionOP> score_func;
+        
+    std::vector<pepdockopt::opt_element> opt_vector;
     
     std::vector<std::shared_ptr<trie_based::TrieBased<trie_based::NodeCount<int>,int>>> phipsi_rama2_sample;
     std::vector<std::shared_ptr<empirical_quantile::ImplicitQuantile<int, double>>> phipsi_rama2_quantile;
@@ -66,8 +72,9 @@ protected:
 public:
     PepDockOpt();
     void init(size_t _threads_number);
+    void set_opt();
     
-    std::vector<double> get_position(); 
+    std::vector<double> get_position(std::vector<double> _lb, std::vector<double> _ub, double width, std::pair<size_t, size_t> spheres_number); 
 };
 
 }

@@ -50,7 +50,7 @@ std::vector<double> bbdep_experiment_actual_states(
     
 std::vector<double> peptide_quaternion(std::vector<double> x, std::vector<opt_element> &opt_vect, size_t opt_vect_size);
 
-std::vector<double> twospheres(std::vector<double> x, size_t opt_vect_size, spheres::box_trans &spheres_obj);
+std::vector<double> twospheres(std::vector<double> x, size_t opt_vect_size, const spheres::box_trans &spheres_obj);
 
 }
 }

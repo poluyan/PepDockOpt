@@ -33,6 +33,7 @@ int main(int argc, char *argv[])
 
     pepdockopt::PepDockOpt obj;
     obj.init(thread_num);
+    obj.set_opt();
     
 //    std::vector<double> lb(100,-100);
 //    std::vector<double> ub(100,100);

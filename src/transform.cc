@@ -358,7 +358,7 @@ std::vector<double> peptide_quaternion(std::vector<double> x, std::vector<opt_el
     return x;
 }
 
-std::vector<double> twospheres(std::vector<double> x, size_t opt_vect_size, spheres::box_trans &spheres_obj)
+std::vector<double> twospheres(std::vector<double> x, size_t opt_vect_size, const spheres::box_trans &spheres_obj)
 {
     std::vector<double> xyz01 = { x[opt_vect_size], x[opt_vect_size + 1], x[opt_vect_size + 2] };
     std::vector<double> rez = bbutils::get_3d_from_dst(spheres_obj.dist, xyz01);

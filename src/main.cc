@@ -35,6 +35,7 @@ int main(int argc, char *argv[])
     obj.init(thread_num);
     obj.set_opt();
     obj.start_position();
+    obj.set_grid();
     
 //    std::vector<double> lb(100,-100);
 //    std::vector<double> ub(100,100);

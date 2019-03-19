@@ -63,6 +63,7 @@ protected:
     std::vector<pepdockopt::opt_element> opt_vector;
     std::vector<double> lb;
     std::vector<double> ub;
+    std::vector<double> start;
     
     std::vector<std::shared_ptr<trie_based::TrieBased<trie_based::NodeCount<int>,int>>> phipsi_rama2_sample;
     std::vector<std::shared_ptr<empirical_quantile::ImplicitQuantile<int, double>>> phipsi_rama2_quantile;
@@ -70,12 +71,17 @@ protected:
     
     pepdockopt::spheres::box_trans trans_spheres_obj;
     
+    typedef trie_based::TrieBased<trie_based::NodeCount<std::uint8_t>,std::uint8_t> frag_type;
+    std::shared_ptr<frag_type> structures_triebased;
+    std::shared_ptr<empirical_quantile::ImplicitQuantile<std::uint8_t, double>> structures_quant;
+    
     void set_score_function();
 public:
     PepDockOpt();
     void init(size_t _threads_number);
     void set_opt();
     void start_position();
+    void set_grid();
     
     std::vector<double> get_position(std::vector<double> _lb, std::vector<double> _ub, double width, std::pair<size_t, size_t> spheres_number); 
 };

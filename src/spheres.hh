@@ -51,7 +51,7 @@ public:
     double max_r;
 
     box_trans();
-    void load_data(std::string fname, size_t steps, bool change_spheres);
+    void load_data(std::string fname, size_t steps);
     bbutils::distribution_3d make_cdf(size_t steps);
 };
 

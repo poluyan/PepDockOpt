@@ -70,8 +70,9 @@ protected:
     std::vector<std::shared_ptr<empirical_quantile::ImplicitQuantile<int, double>>> phipsi_rama2_quantile;
     std::vector<std::shared_ptr<empirical_quantile::ImplicitQuantile<int, double>>> omega_quantile;
     
-    pepdockopt::spheres::box_trans trans_spheres_obj1;
-    pepdockopt::spheres::box_trans trans_spheres_obj2;
+    pepdockopt::spheres::box_trans trans_spheres_obj;
+//    pepdockopt::spheres::box_trans trans_spheres_obj1;
+//    pepdockopt::spheres::box_trans trans_spheres_obj2;
     
     std::shared_ptr<trie_based::TrieBased<trie_based::NodeCount<size_t>, size_t>> two_spheres_sample;
     std::shared_ptr<empirical_quantile::ImplicitQuantile<size_t, double>> two_spheres_quant;

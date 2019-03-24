@@ -181,6 +181,92 @@ std::vector<char> findTheDot_MultipleGrids_Moore(std::vector<std::vector<double>
     return t;
 }
 
+std::vector<char> findTheDot_MultipleGrids(std::vector<std::vector<double>>& grids,
+        std::vector<std::vector<char>> &points,
+        std::set<std::vector<char>> &visited,
+        std::vector<double> &dx,
+        std::function<double(std::vector<double>)> f)
+{
+    std::vector<char> t = points.back(), point;
+    points.pop_back();
+
+    for(size_t i = 0; i != t.size(); i++)
+    {
+        point = t;
+        point[i] = point[i] + 1;
+
+        if(point[i] < 0 || point[i] > grids[i].size() - 1)
+            continue;
+
+        points.push_back(point);
+    }
+
+    for(size_t i = 0; i != t.size(); i++)
+    {
+        point = t;
+        point[i] = point[i] - 1;
+
+        //if(point[i] < 0 || point[i] > grids[i].size() - 1)
+        //    continue;
+
+        if(point[i] < 0)
+        {
+            point[i] = grids[i].size() - 1;
+        }
+        if(point[i] > grids[i].size() - 1)
+        {
+            point[i] = 0;
+        }
+
+        points.push_back(point);
+    }
+
+    for(size_t i = 0; i != t.size(); i++)
+    {
+        point = t;
+        point[i] = point[i] - 1;
+        for(size_t j = 0; j != t.size(); j++)
+        {
+            point[i] = point[i] - 1;
+
+            //if(point[i] < 0 || point[i] > grids[i].size() - 1)
+            //    continue;
+            if(point[i] < 0)
+            {
+                point[i] = grids[i].size() - 1;
+            }
+            if(point[i] > grids[i].size() - 1)
+            {
+                point[i] = 0;
+            }
+
+            points.push_back(point);
+        }
+    }
+
+    while(!points.empty())
+    {
+        t = points.back();
+        points.pop_back();
+
+        std::vector<double> dot(t.size());
+        for(size_t i = 0; i != dot.size(); i++)
+        {
+            dot[i] = grids[i][t[i]] + dx[i];
+        }
+
+        double val = f(dot);
+
+        if(val > 1.0)
+        {
+            std::cout << "found!" << std::endl;
+            return t;
+        }
+    }
+    std::cout << "still miss the point" << std::endl;
+    return t;
+}
+
 double Quadratic_ValueSimple3(std::vector<double> x,
                               core::pose::Pose& pose,
                               PoseShift &shift_params,
@@ -482,6 +568,88 @@ double find_sphere_quant(std::vector<double> x,
         rez = std::exp(-temp*width);
     return -rez;
 }
+
+double find_sphere_quant_check(std::vector<double> x,
+                               std::shared_ptr<empirical_quantile::ImplicitQuantile<size_t, double>> quant,
+                               core::pose::Pose& pose,
+                               PoseShift &shift_params,
+                               const std::vector<opt_element> &opt_vector,
+                               const ComplexInfoNseq &complex_stuff,
+                               const pepdockopt::ranges &peptide_ranges,
+                               const spheres::box_trans &trans_spheres_obj,
+                               size_t sphere_number)
+{
+    double pi = numeric::NumericTraits<core::Real>::pi();
+    for(size_t i = std::get<1>(peptide_ranges.phipsi); i != std::get<2>(peptide_ranges.phipsi); i++)
+    {
+        x[i] = pi*(2.0*x[i] - 1.0);
+    }
+    for(size_t i = 0, end = opt_vector.size(); i < end; i++)
+    {
+        pose.set_dof(opt_vector[i].dofid, x[i]);
+    }
+
+    x = transform::peptide_quaternion(x, opt_vector, opt_vector.size());
+    //x = transform::twospheres(x, opt_vector.size(), trans_spheres_obj);
+
+    std::vector<double> t1 = {x[opt_vector.size()], x[opt_vector.size() + 1], x[opt_vector.size() + 2]};
+    std::vector<double> s1(t1.size());
+    quant->transform(t1, s1);
+    x[opt_vector.size()] = s1[0];
+    x[opt_vector.size() + 1] = s1[1];
+    x[opt_vector.size() + 2] = s1[2];
+
+    ///
+
+    core::Vector new_position = shift_params.InitPeptidePosition;
+    new_position.at(0) = x[opt_vector.size()];
+    new_position.at(1) = x[opt_vector.size() + 1];
+    new_position.at(2) = x[opt_vector.size() + 2];
+
+    shift_params.FlexibleJump.reset();
+
+    shift_params.FlexibleJump.set_rotation(shift_params.InitRm);
+    pose.set_jump(pose.num_jump(), shift_params.FlexibleJump);
+
+    numeric::Real current_distance(pose.residue(complex_stuff.get_peptide_first_index()).xyz("CA").distance(new_position));
+    shift_params.FlexibleJump.translation_along_axis(shift_params.UpstreamStub, new_position - pose.residue(complex_stuff.get_peptide_first_index()).xyz("CA"), current_distance);
+    pose.set_jump(pose.num_jump(), shift_params.FlexibleJump);
+
+    core::Vector peptide_c_alpha_centroid(pose.residue(complex_stuff.get_peptide_first_index()).xyz("CA"));
+    core::Vector axis(x[opt_vector.size() + 3], x[opt_vector.size() + 4], x[opt_vector.size() + 5]);
+
+    shift_params.SpinMover.rot_center(peptide_c_alpha_centroid);
+    shift_params.SpinMover.spin_axis(axis);
+    shift_params.SpinMover.angle_magnitude(x.back());
+    shift_params.SpinMover.apply(pose);
+
+    ///
+
+    std::vector<double> exponential_center =
+    {
+        trans_spheres_obj.spheres[sphere_number].x,
+        trans_spheres_obj.spheres[sphere_number].y,
+        trans_spheres_obj.spheres[sphere_number].z
+    };
+
+    core::Vector lCA = pose.residue(complex_stuff.get_peptide_last_index()).xyz("CA");
+
+    double rez = 0;
+    double temp = 0;
+    for(size_t i = 0; i != exponential_center.size(); i++)
+    {
+        rez += std::pow(lCA.at(i) - exponential_center[i], 2.0);
+    }
+    temp = std::sqrt(rez);
+    if(temp < trans_spheres_obj.spheres[sphere_number].r)
+    {
+        rez = 1.1;
+    }
+    else
+        rez = 0;
+    return rez;
+}
+
 
 template <typename T, typename V>
 struct cell
@@ -1174,15 +1342,16 @@ void PepDockOpt::set_opt()
     opt_vector.insert(opt_vector.end(), peptide_mc_p_info.begin(), peptide_mc_p_info.end());
 
     std::vector<core::Size> protein_cm_index;
-    //trans_spheres_obj.load_data("input_pdb/DR1-RA_0001.dat", 100);
-    trans_spheres_obj1.load_data("input/pdb/1JWG_0001.dat", 100, false); //1JWG_0001_3
-    trans_spheres_obj2.load_data("input/pdb/1JWG_0001.dat", 100, true); //1JWG_0001_3
+    trans_spheres_obj.load_data("input/pdb/DR1-RA_0001.dat", 100);
+    //trans_spheres_obj.load_data("input/pdb/1JWG_0001.dat", 100);
+//    trans_spheres_obj1.load_data("input/pdb/1JWG_0001.dat", 100, false); //1JWG_0001_3
+//    trans_spheres_obj2.load_data("input/pdb/1JWG_0001.dat", 100, true); //1JWG_0001_3
 
     // from file .dat
     protein_cm_index = param_list.get_protein_index_between_two_spheres(
-                           core::Vector(trans_spheres_obj1.spheres.front().x, trans_spheres_obj1.spheres.front().y, trans_spheres_obj1.spheres.front().z),
-                           core::Vector(trans_spheres_obj1.spheres.back().x, trans_spheres_obj1.spheres.back().y, trans_spheres_obj1.spheres.back().z),
-                           trans_spheres_obj1.max_r,
+                           core::Vector(trans_spheres_obj.spheres.front().x, trans_spheres_obj.spheres.front().y, trans_spheres_obj.spheres.front().z),
+                           core::Vector(trans_spheres_obj.spheres.back().x, trans_spheres_obj.spheres.back().y, trans_spheres_obj.spheres.back().z),
+                           trans_spheres_obj.max_r,
                            1000);
 
     // from pose first
@@ -1250,40 +1419,40 @@ void PepDockOpt::set_opt()
     std::cout << "dim = " << dim << std::endl;
 }
 
-void PepDockOpt::start_position1()
-{
-    std::pair<size_t, size_t> spheres_number = std::make_pair(0, 1);
-    start1.resize(opt_vector.size() + 7);
-    std::vector<double> sphere_center1 = {trans_spheres_obj1.spheres[0].x, trans_spheres_obj1.spheres[0].y, trans_spheres_obj1.spheres[0].z};
-    std::vector<double> sphere_center2 = {trans_spheres_obj1.spheres[1].x, trans_spheres_obj1.spheres[1].y, trans_spheres_obj1.spheres[1].z};
-
-    double rez = 0;
-    for(size_t i = 0; i != start1.size(); i++)
-        rez += std::pow(sphere_center1[i] - sphere_center2[i], 2.0);
-    double width = 20.0/rez;//20.0/rez;
-
-    start1 = get_position(lb, ub, width, trans_spheres_obj1, spheres_number);
-}
-void PepDockOpt::start_position2()
-{
-    std::pair<size_t, size_t> spheres_number = std::make_pair(0, 1);
-    start2.resize(opt_vector.size() + 7);
-    std::vector<double> sphere_center1 = {trans_spheres_obj1.spheres[0].x, trans_spheres_obj1.spheres[0].y, trans_spheres_obj1.spheres[0].z};
-    std::vector<double> sphere_center2 = {trans_spheres_obj1.spheres[1].x, trans_spheres_obj1.spheres[1].y, trans_spheres_obj1.spheres[1].z};
-
-    double rez = 0;
-    for(size_t i = 0; i != start2.size(); i++)
-        rez += std::pow(sphere_center1[i] - sphere_center2[i], 2.0);
-    double width = 20.0/rez;//20.0/rez;
-
-    start2 = get_position(lb, ub, width, trans_spheres_obj2, spheres_number);
-}
+//void PepDockOpt::start_position1()
+//{
+//    std::pair<size_t, size_t> spheres_number = std::make_pair(0, 1);
+//    start1.resize(opt_vector.size() + 7);
+//    std::vector<double> sphere_center1 = {trans_spheres_obj1.spheres[0].x, trans_spheres_obj1.spheres[0].y, trans_spheres_obj1.spheres[0].z};
+//    std::vector<double> sphere_center2 = {trans_spheres_obj1.spheres[1].x, trans_spheres_obj1.spheres[1].y, trans_spheres_obj1.spheres[1].z};
+//
+//    double rez = 0;
+//    for(size_t i = 0; i != start1.size(); i++)
+//        rez += std::pow(sphere_center1[i] - sphere_center2[i], 2.0);
+//    double width = 20.0/rez;//20.0/rez;
+//
+//    start1 = get_position(lb, ub, width, trans_spheres_obj1, spheres_number);
+//}
+//void PepDockOpt::start_position2()
+//{
+//    std::pair<size_t, size_t> spheres_number = std::make_pair(0, 1);
+//    start2.resize(opt_vector.size() + 7);
+//    std::vector<double> sphere_center1 = {trans_spheres_obj1.spheres[0].x, trans_spheres_obj1.spheres[0].y, trans_spheres_obj1.spheres[0].z};
+//    std::vector<double> sphere_center2 = {trans_spheres_obj1.spheres[1].x, trans_spheres_obj1.spheres[1].y, trans_spheres_obj1.spheres[1].z};
+//
+//    double rez = 0;
+//    for(size_t i = 0; i != start2.size(); i++)
+//        rez += std::pow(sphere_center1[i] - sphere_center2[i], 2.0);
+//    double width = 20.0/rez;//20.0/rez;
+//
+//    start2 = get_position(lb, ub, width, trans_spheres_obj2, spheres_number);
+//}
 void PepDockOpt::set_grid()
 {
     std::vector<std::vector<double>> best_samples;
 
     gridN.resize(lb.size());
-    gridN[0] = 36;//psi
+    /*gridN[0] = 36;//psi
     gridN[1] = 36;//2
     gridN[2] = 36;//2
     gridN[3] = 36;//3
@@ -1297,7 +1466,19 @@ void PepDockOpt::set_grid()
     gridN[10] = 40;
     gridN[11] = 40;
     gridN[12] = 40;
-    gridN[13] = 100;
+    gridN[13] = 100;*/
+
+    for(size_t i = 0; i != lb.size(); i++)
+    {
+        gridN[i] = 250;
+    }
+    gridN[gridN.size() - 7] = 100;
+    gridN[gridN.size() - 6] = 100;
+    gridN[gridN.size() - 5] = 100;
+    gridN[gridN.size() - 4] = 40;
+    gridN[gridN.size() - 3] = 40;
+    gridN[gridN.size() - 2] = 40;
+    gridN[gridN.size() - 1] = 100;
 
     grids.resize(gridN.size());
     dx.resize(gridN.size());
@@ -1356,16 +1537,15 @@ void PepDockOpt::set_quantile1()
     {
         tt[i] = grids[i][startdot[i]] + dx[i];
     }
-
-    std::pair<size_t, size_t> spheres_number = std::make_pair(0, 1);
-    if(Quadratic_ValueSimple3(tt,
-                              pose.front(),
-                              pose_shift.front(),
-                              opt_vector,
-                              param_list,
-                              peptide_ranges,
-                              trans_spheres_obj1,
-                              spheres_number) < 1.0)
+    if(find_sphere_quant_check(tt,
+                               two_spheres_quant,
+                               pose.front(),
+                               pose_shift.front(),
+                               opt_vector,
+                               param_list,
+                               peptide_ranges,
+                               trans_spheres_obj,
+                               1) < 1.0)
     {
         core::pose::PoseOP pep = pose[0].split_by_chain(pose[0].num_chains());
         //to_allatom(*pep);
@@ -1377,20 +1557,28 @@ void PepDockOpt::set_quantile1()
         pp.push_back(startdot);
         std::set<std::vector<char>> vv;
 
-        std::function<double(std::vector<double>)> f = std::bind(&Quadratic_ValueSimple3,
+        std::function<double(std::vector<double>)> f = std::bind(&find_sphere_quant_check,
                 std::placeholders::_1,
-                pose.front(),
-                pose_shift.front(),
-                opt_vector,
-                param_list,
-                peptide_ranges,
-                trans_spheres_obj1,
-                spheres_number);
+                two_spheres_quant,
+                std::ref(pose.front()),
+                std::ref(pose_shift.front()),
+                std::ref(opt_vector),
+                std::ref(param_list),
+                std::ref(peptide_ranges),
+                std::ref(trans_spheres_obj),
+                1);
 
-        startdot = findTheDot_MultipleGrids_Moore(grids, pp, vv, dx, f);
+        if(startdot.size() <= 15)
+        {
+            startdot = findTheDot_MultipleGrids_Moore(grids, pp, vv, dx, f);
+        }
+        else
+        {
+            startdot = findTheDot_MultipleGrids(grids, pp, vv, dx, f);
+        }
         //std::cout << "the point!" << std::endl;
     }
-
+    std::cout << "here!" << std::endl;
 
     for(size_t j = 0; j != startdot.size(); j++)
     {
@@ -1456,15 +1644,15 @@ void PepDockOpt::set_quantile2()
         tt[i] = grids[i][startdot[i]] + dx[i];
     }
 
-    std::pair<size_t, size_t> spheres_number = std::make_pair(0, 1);
-    if(Quadratic_ValueSimple3(tt,
-                              pose.front(),
-                              pose_shift.front(),
-                              opt_vector,
-                              param_list,
-                              peptide_ranges,
-                              trans_spheres_obj2,
-                              spheres_number) < 1.0)
+    if(find_sphere_quant_check(tt,
+                               two_spheres_quant,
+                               pose.front(),
+                               pose_shift.front(),
+                               opt_vector,
+                               param_list,
+                               peptide_ranges,
+                               trans_spheres_obj,
+                               0) < 1.0)
     {
         core::pose::PoseOP pep = pose[0].split_by_chain(pose[0].num_chains());
         //to_allatom(*pep);
@@ -1476,17 +1664,25 @@ void PepDockOpt::set_quantile2()
         pp.push_back(startdot);
         std::set<std::vector<char>> vv;
 
-        std::function<double(std::vector<double>)> f = std::bind(&Quadratic_ValueSimple3,
+        std::function<double(std::vector<double>)> f = std::bind(&find_sphere_quant_check,
                 std::placeholders::_1,
-                pose.front(),
-                pose_shift.front(),
-                opt_vector,
-                param_list,
-                peptide_ranges,
-                trans_spheres_obj2,
-                spheres_number);
+                two_spheres_quant,
+                std::ref(pose.front()),
+                std::ref(pose_shift.front()),
+                std::ref(opt_vector),
+                std::ref(param_list),
+                std::ref(peptide_ranges),
+                std::ref(trans_spheres_obj),
+                0);
 
-        startdot = findTheDot_MultipleGrids_Moore(grids, pp, vv, dx, f);
+        if(startdot.size() <= 15)
+        {
+            startdot = findTheDot_MultipleGrids_Moore(grids, pp, vv, dx, f);
+        }
+        else
+        {
+            startdot = findTheDot_MultipleGrids(grids, pp, vv, dx, f);
+        }
         //std::cout << "the point!" << std::endl;
     }
 
@@ -1542,7 +1738,6 @@ void PepDockOpt::set_quantile2()
 void PepDockOpt::check()
 {
     structures_triebased->fill_tree_count();
-    std::pair<size_t, size_t> spheres_number = std::make_pair(0, 1);
     // check
     std::mt19937_64 generator;
     generator.seed(1);
@@ -1564,15 +1759,16 @@ void PepDockOpt::check()
     for(size_t j = 0; j != values01.size(); j++)
         structures_quant->transform(values01[j], sampled[j]);
 
-    std::function<double(std::vector<double>)> fff = std::bind(&Quadratic_ValueSimple3,
+    std::function<double(std::vector<double>)> fff = std::bind(&find_sphere_quant_check,
             std::placeholders::_1,
+            two_spheres_quant,
             std::ref(pose.front()),
             std::ref(pose_shift.front()),
             std::ref(opt_vector),
             std::ref(param_list),
             std::ref(peptide_ranges),
-            std::ref(trans_spheres_obj2),
-            spheres_number);
+            std::ref(trans_spheres_obj),
+            1);
 
     for(size_t j = 0; j != values01.size(); j++)
     {
@@ -1593,7 +1789,7 @@ void PepDockOpt::check()
 void PepDockOpt::sphere_quant()
 {
     spheres::box_trans trans_sp;
-    trans_sp.load_data("input/pdb/1JWG_0001.dat", 100, false);
+    trans_sp.load_data("input/pdb/1JWG_0001.dat", 100);
 
     //std::vector<size_t> grid_n = {50, 5, 5};
     std::vector<size_t> grid_n = {500, 50, 50};
@@ -1684,14 +1880,14 @@ void PepDockOpt::sphere_quant()
 
 
     start2.resize(opt_vector.size() + 7);
-    std::vector<double> sphere_center1 = {trans_spheres_obj1.spheres[0].x, trans_spheres_obj1.spheres[0].y, trans_spheres_obj1.spheres[0].z};
-    std::vector<double> sphere_center2 = {trans_spheres_obj1.spheres[1].x, trans_spheres_obj1.spheres[1].y, trans_spheres_obj1.spheres[1].z};
+    std::vector<double> sphere_center1 = {trans_spheres_obj.spheres[0].x, trans_spheres_obj.spheres[0].y, trans_spheres_obj.spheres[0].z};
+    std::vector<double> sphere_center2 = {trans_spheres_obj.spheres[1].x, trans_spheres_obj.spheres[1].y, trans_spheres_obj.spheres[1].z};
 
     double rez = 0;
     for(size_t i = 0; i != start2.size(); i++)
         rez += std::pow(sphere_center1[i] - sphere_center2[i], 2.0);
     double width = 20.0/rez;//20.0/rez;
-    
+
     std::mt19937_64 generator_;
     generator_.seed(1);
     std::vector<double> start(lb.size());
@@ -1725,7 +1921,7 @@ void PepDockOpt::sphere_quant()
     }
     while(obj1.get_best() > -1.05);
     start1 = start;
-    
+
     cso::CSO obj2(1000, lb.size(), 0.01, 1e6, generator_);
     obj2.FitnessFunction = std::bind(&find_sphere_quant,
                                      std::placeholders::_1,

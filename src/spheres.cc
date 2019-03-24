@@ -33,7 +33,7 @@ namespace spheres
 
 box_trans::box_trans() {}
 
-void box_trans::load_data(std::string fname, size_t steps)
+void box_trans::load_data(std::string fname, size_t steps, bool change_spheres)
 {
     std::ifstream fIn;
     fIn.open(fname.c_str());
@@ -57,6 +57,11 @@ void box_trans::load_data(std::string fname, size_t steps)
         }
     }
     fIn.close();
+    
+    if(change_spheres)
+    {
+        std::reverse(spheres.begin(), spheres.end());
+    }
 
     auto minmax_x = std::minmax_element(spheres.begin(), spheres.end(),
         [](sphere_info const &lhs, sphere_info const &rhs) { return lhs.x < rhs.x; });

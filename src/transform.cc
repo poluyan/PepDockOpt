@@ -347,7 +347,7 @@ std::vector<double> bbdep_experiment_actual_states(
     return x;
 }
 
-std::vector<double> peptide_quaternion(std::vector<double> x, std::vector<opt_element> &opt_vect, size_t opt_vect_size)
+std::vector<double> peptide_quaternion(std::vector<double> x, const std::vector<opt_element> &opt_vect, size_t opt_vect_size)
 {
     // if search space from [0;1] move it to [-1;1]
     x[opt_vect_size + 3] = 2.0*x[opt_vect_size + 3] - 1.0;

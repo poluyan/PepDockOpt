@@ -15,6 +15,13 @@
    limitations under the License.
 
 **************************************************************************/
+#ifndef INCLUDED_cso_hh
+#define INCLUDED_cso_hh
+
+#include <random>
+#include <iostream>
+#include <vector>
+
 namespace pepdockopt
 {
 namespace cso
@@ -271,5 +278,9 @@ protected:
 
     std::mt19937_64 generator;
 };
+
 }
 }
+
+
+#endif

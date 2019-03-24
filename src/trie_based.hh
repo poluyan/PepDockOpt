@@ -200,7 +200,7 @@ std::vector<I> TrieBased<T,I>::get_and_remove_last()
 
     for(size_t i = 0; i != dimension; ++i)
     {
-        p->count--;
+        //p->count--;
         sample.push_back(p->children.back()->index);
         p = p->children.back().get();
     }

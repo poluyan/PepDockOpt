@@ -43,16 +43,15 @@ struct box
 
 class box_trans
 {
-private:
+public:
     box space;
 
-public:
     std::vector<sphere_info> spheres;
     bbutils::distribution_3d dist;
     double max_r;
 
     box_trans();
-    void load_data(std::string fname, size_t steps);
+    void load_data(std::string fname, size_t steps, bool change_spheres);
     bbutils::distribution_3d make_cdf(size_t steps);
 };
 

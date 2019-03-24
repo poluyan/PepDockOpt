@@ -48,7 +48,7 @@ std::vector<double> bbdep_experiment_actual_states(
     const pepdockopt::bbdep::BBDEP_Dunbrack_sm &bbdep_obj_sm,
     size_t peptide_phipsi_2d_size);
     
-std::vector<double> peptide_quaternion(std::vector<double> x, std::vector<opt_element> &opt_vect, size_t opt_vect_size);
+std::vector<double> peptide_quaternion(std::vector<double> x, const std::vector<opt_element> &opt_vect, size_t opt_vect_size);
 
 std::vector<double> twospheres(std::vector<double> x, size_t opt_vect_size, const spheres::box_trans &spheres_obj);
 

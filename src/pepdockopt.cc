@@ -28,6 +28,7 @@
 #include <complex.hh>
 #include <transform.hh>
 #include <cso.hh>
+#include <data_io.hh>
 
 #include <vector>
 #include <random>
@@ -183,7 +184,7 @@ std::vector<char> findTheDot_MultipleGrids_Moore(std::vector<std::vector<double>
 double Quadratic_ValueSimple3(std::vector<double> x,
                               core::pose::Pose& pose,
                               PoseShift &shift_params,
-                              std::vector<opt_element> &opt_vector,
+                              const std::vector<opt_element> &opt_vector,
                               const ComplexInfoNseq &complex_stuff,
                               const pepdockopt::ranges &peptide_ranges,
                               const spheres::box_trans &trans_spheres_obj,
@@ -193,6 +194,10 @@ double Quadratic_ValueSimple3(std::vector<double> x,
     for(size_t i = std::get<1>(peptide_ranges.phipsi); i != std::get<2>(peptide_ranges.phipsi); i++)
     {
         x[i] = pi*(2.0*x[i] - 1.0);
+    }
+    for(size_t i = 0, end = opt_vector.size(); i < end; i++)
+    {
+        pose.set_dof(opt_vector[i].dofid, x[i]);
     }
 
     x = transform::peptide_quaternion(x, opt_vector, opt_vector.size());
@@ -252,7 +257,7 @@ double Quadratic_ValueSimple3_omp(std::vector<double> x,
                                   int th_id,
                                   std::vector<core::pose::Pose> &pose,
                                   std::vector<PoseShift> &shift_params,
-                                  std::vector<opt_element> &opt_vector,
+                                  const std::vector<opt_element> &opt_vector,
                                   const ComplexInfoNseq &complex_stuff,
                                   const pepdockopt::ranges &peptide_ranges,
                                   const spheres::box_trans &trans_spheres_obj,
@@ -262,6 +267,10 @@ double Quadratic_ValueSimple3_omp(std::vector<double> x,
     for(size_t i = std::get<1>(peptide_ranges.phipsi); i != std::get<2>(peptide_ranges.phipsi); i++)
     {
         x[i] = pi*(2.0*x[i] - 1.0);
+    }
+    for(size_t i = 0, end = opt_vector.size(); i < end; i++)
+    {
+        pose[th_id].set_dof(opt_vector[i].dofid, x[i]);
     }
 
     x = transform::peptide_quaternion(x, opt_vector, opt_vector.size());
@@ -320,7 +329,7 @@ double Quadratic_ValueSimple3_omp(std::vector<double> x,
 double Quadratic_ValueSimple2(std::vector<double> x,
                               core::pose::Pose& pose,
                               PoseShift &shift_params,
-                              std::vector<opt_element> &opt_vector,
+                              const std::vector<opt_element> &opt_vector,
                               const ComplexInfoNseq &complex_stuff,
                               double width,
                               const pepdockopt::ranges &peptide_ranges,
@@ -331,6 +340,10 @@ double Quadratic_ValueSimple2(std::vector<double> x,
     for(size_t i = std::get<1>(peptide_ranges.phipsi); i != std::get<2>(peptide_ranges.phipsi); i++)
     {
         x[i] = pi*(2.0*x[i] - 1.0);
+    }
+    for(size_t i = 0, end = opt_vector.size(); i < end; i++)
+    {
+        pose.set_dof(opt_vector[i].dofid, x[i]);
     }
 
     x = transform::peptide_quaternion(x, opt_vector, opt_vector.size());
@@ -386,6 +399,90 @@ double Quadratic_ValueSimple2(std::vector<double> x,
         rez = std::exp(-temp*width);
     return -rez;
 }
+
+
+double find_sphere_quant(std::vector<double> x,
+                         std::shared_ptr<empirical_quantile::ImplicitQuantile<size_t, double>> quant,
+                         core::pose::Pose& pose,
+                         PoseShift &shift_params,
+                         const std::vector<opt_element> &opt_vector,
+                         const ComplexInfoNseq &complex_stuff,
+                         double width,
+                         const pepdockopt::ranges &peptide_ranges,
+                         const spheres::box_trans &trans_spheres_obj,
+                         size_t sphere_number)
+{
+    double pi = numeric::NumericTraits<core::Real>::pi();
+    for(size_t i = std::get<1>(peptide_ranges.phipsi); i != std::get<2>(peptide_ranges.phipsi); i++)
+    {
+        x[i] = pi*(2.0*x[i] - 1.0);
+    }
+    for(size_t i = 0, end = opt_vector.size(); i < end; i++)
+    {
+        pose.set_dof(opt_vector[i].dofid, x[i]);
+    }
+
+    x = transform::peptide_quaternion(x, opt_vector, opt_vector.size());
+    //x = transform::twospheres(x, opt_vector.size(), trans_spheres_obj);
+
+    std::vector<double> t1 = {x[opt_vector.size()], x[opt_vector.size() + 1], x[opt_vector.size() + 2]};
+    std::vector<double> s1(t1.size());
+    quant->transform(t1, s1);
+    x[opt_vector.size()] = s1[0];
+    x[opt_vector.size() + 1] = s1[1];
+    x[opt_vector.size() + 2] = s1[2];
+
+    ///
+
+    core::Vector new_position = shift_params.InitPeptidePosition;
+    new_position.at(0) = x[opt_vector.size()];
+    new_position.at(1) = x[opt_vector.size() + 1];
+    new_position.at(2) = x[opt_vector.size() + 2];
+
+    shift_params.FlexibleJump.reset();
+
+    shift_params.FlexibleJump.set_rotation(shift_params.InitRm);
+    pose.set_jump(pose.num_jump(), shift_params.FlexibleJump);
+
+    numeric::Real current_distance(pose.residue(complex_stuff.get_peptide_first_index()).xyz("CA").distance(new_position));
+    shift_params.FlexibleJump.translation_along_axis(shift_params.UpstreamStub, new_position - pose.residue(complex_stuff.get_peptide_first_index()).xyz("CA"), current_distance);
+    pose.set_jump(pose.num_jump(), shift_params.FlexibleJump);
+
+    core::Vector peptide_c_alpha_centroid(pose.residue(complex_stuff.get_peptide_first_index()).xyz("CA"));
+    core::Vector axis(x[opt_vector.size() + 3], x[opt_vector.size() + 4], x[opt_vector.size() + 5]);
+
+    shift_params.SpinMover.rot_center(peptide_c_alpha_centroid);
+    shift_params.SpinMover.spin_axis(axis);
+    shift_params.SpinMover.angle_magnitude(x.back());
+    shift_params.SpinMover.apply(pose);
+
+    ///
+
+    std::vector<double> exponential_center =
+    {
+        trans_spheres_obj.spheres[sphere_number].x,
+        trans_spheres_obj.spheres[sphere_number].y,
+        trans_spheres_obj.spheres[sphere_number].z
+    };
+
+    core::Vector lCA = pose.residue(complex_stuff.get_peptide_last_index()).xyz("CA");
+
+    double rez = 0;
+    double temp = 0;
+    for(size_t i = 0; i != exponential_center.size(); i++)
+    {
+        rez += std::pow(lCA.at(i) - exponential_center[i], 2.0);
+    }
+    temp = std::sqrt(rez);
+    if(temp < trans_spheres_obj.spheres[sphere_number].r)
+    {
+        rez = 1.1;
+    }
+    else
+        rez = std::exp(-temp*width);
+    return -rez;
+}
+
 template <typename T, typename V>
 struct cell
 {
@@ -404,6 +501,206 @@ struct cell
         return dot < a.dot;
     }
 };
+
+void boundaryFill4MultipleGrids_omp_trie_only(std::vector<std::vector<double>>& grids,
+        std::vector<std::uint8_t> &start,
+        std::shared_ptr<trie_based::TrieBased<trie_based::NodeCount<std::uint8_t>,std::uint8_t>> samples,
+        std::vector<double> &dx,
+        int total_threads,
+        std::function<double(std::vector<double>, int)> f)
+{
+    /// generate all permutations
+    std::vector<int> ind;
+    ind.push_back(0);
+    ind.push_back(grids.size() - 4);
+    ind.push_back(grids.size() - 3);
+    ind.push_back(grids.size() - 2);
+    ind.push_back(grids.size() - 1);
+    std::vector<std::vector<char>> variable_values(ind.size(), std::vector<char>(3));
+    for(size_t i = 0; i != variable_values.size(); i++)
+    {
+        variable_values[i][0] = -1;
+        variable_values[i][1] = 0;
+        variable_values[i][2] = 1;
+    }
+    std::vector<std::vector<char>> permut = iterate(variable_values);
+
+    int dim = grids.size();
+    std::vector<double> dot(grids.size());
+
+    trie_based::TrieBased<trie_based::Node<std::uint8_t>,std::uint8_t> visited;
+    trie_based::TrieBased<trie_based::Node<std::uint8_t>,std::uint8_t> points;
+    trie_based::TrieBased<trie_based::Node<std::uint8_t>,std::uint8_t> not_coumputed;
+
+    for(size_t i = 0; i != dot.size(); i++)
+    {
+        dot[i] = grids[i][start[i]] + dx[i];
+    }
+    if(f(dot, 0) > 1.05)
+        points.insert(start);
+    else
+        return;
+
+    while(!points.empty() || !not_coumputed.empty())
+    {
+        while(!points.empty())
+        {
+            auto point = points.get_and_remove_last();
+            if(visited.search(point) || samples->search(point))
+            {
+                //points.pop_front();
+                continue;
+            }
+            //visited.insert(point);
+            samples->insert(point);
+
+            auto init_point = point;
+            for(size_t i = 0; i != point.size(); i++)
+            {
+                point = init_point;
+                point[i] = point[i] + 1;
+
+                if(point[i] < 0)
+                {
+                    point[i] = grids[i].size() - 1;
+                }
+                if(point[i] > grids[i].size() - 1)
+                {
+                    point[i] = 0;
+                }
+
+//                if(point[i] < 0 || point[i] > grids[i].size() - 1)
+//                    continue;
+
+                if(!visited.search(point) && !samples->search(point))
+                {
+                    not_coumputed.insert(point);
+                }
+            }
+            for(size_t i = 0; i != point.size(); i++)
+            {
+                point = init_point;
+                point[i] = point[i] - 1;
+
+                if(point[i] < 0)
+                {
+                    point[i] = grids[i].size() - 1;
+                }
+                if(point[i] > grids[i].size() - 1)
+                {
+                    point[i] = 0;
+                }
+
+//                if(point[i] < 0 || point[i] > grids[i].size() - 1)
+//                    continue;
+
+                if(!visited.search(point) && !samples->search(point))
+                {
+                    not_coumputed.insert(point);
+                }
+            }
+
+            ///Moore for 4 dots only
+            for(size_t i = 0; i != permut.size(); i++)
+            {
+                point = init_point;
+                bool flag = true;
+                for(size_t j = 0; j != variable_values.size(); j++)
+                {
+                    point[ind[j]] = point[ind[j]] + permut[i][j];
+//                    if(point[ind[j]] < 0 || point[ind[j]] > grids[ind[j]].size() - 1)
+//                    {
+//                        flag = false;
+//                        break;
+//                    }
+
+                    if(point[ind[j]] < 0)
+                    {
+                        point[ind[j]] = grids[ind[j]].size() - 1;
+                    }
+                    if(point[ind[j]] > grids[ind[j]].size() - 1)
+                    {
+                        point[ind[j]] = 0;
+                    }
+                }
+                if(!flag)
+                    continue;
+
+                if(!visited.search(point) && !samples->search(point) && !not_coumputed.search(point))
+                {
+                    not_coumputed.insert(point);
+                }
+            }
+        }
+
+        size_t number_to_points = 0;
+        while(!not_coumputed.empty())
+        {
+            std::vector<cell<std::uint8_t,char>> to_compute;
+            for(size_t i = 0; i != total_threads*100000; i++)
+            {
+                if(not_coumputed.empty())
+                    break;
+
+                auto point = not_coumputed.get_and_remove_last();
+                to_compute.push_back(cell<std::uint8_t,char>(point, -1));
+            }
+            int omp_size = to_compute.size();
+            while(omp_size%total_threads)
+            {
+                omp_size--;
+            }
+
+            //omp_size = 0;
+
+            int th_id;
+            #pragma omp parallel private(th_id)
+            {
+                th_id = omp_get_thread_num();
+                if(th_id < total_threads)
+                {
+                    for(int i = th_id * omp_size / total_threads; i < (th_id + 1) * omp_size / total_threads; ++i)
+                    {
+                        std::vector<double> values(dim);
+                        for(size_t j = 0; j != values.size(); j++)
+                        {
+                            values[j] = grids[j][to_compute[i].dot[j]] + dx[j];
+                        }
+                        to_compute[i].value = f(values, th_id);
+                    }
+                }
+            }
+
+            for(size_t i = omp_size; i != to_compute.size(); i++)
+            {
+                std::vector<double> values(dim);
+                for(size_t j = 0; j != values.size(); j++)
+                {
+                    values[j] = grids[j][to_compute[i].dot[j]] + dx[j];
+                }
+                to_compute[i].value = f(values, 0);
+            }
+
+            for(size_t i = 0; i != to_compute.size(); i++)
+            {
+                if(to_compute[i].value == 1)
+                {
+                    points.insert(to_compute[i].dot);
+                    ++number_to_points;
+                }
+                else if(to_compute[i].value == 0)
+                {
+                    visited.insert(to_compute[i].dot);
+                }
+            }
+        }
+        std::cout << number_to_points << std::endl;
+    }
+    visited.remove_tree();
+    points.remove_tree();
+    not_coumputed.remove_tree();
+}
+
 void boundaryFill4MultipleGrids_omp(std::vector<std::vector<double>>& grids,
                                     std::vector<std::vector<char>> &pp,
                                     std::set<std::vector<char>> &visited,
@@ -720,7 +1017,11 @@ private:
 };*/
 
 
-std::vector<double> PepDockOpt::get_position(std::vector<double> _lb, std::vector<double> _ub, double width, std::pair<size_t, size_t> spheres_number)
+std::vector<double> PepDockOpt::get_position(std::vector<double> _lb,
+        std::vector<double> _ub,
+        double width,
+        spheres::box_trans trans_sp,
+        std::pair<size_t, size_t> spheres_number)
 {
     std::vector<double> start(_lb.size());
     std::vector<double> start_temp(start.size());
@@ -767,7 +1068,7 @@ std::vector<double> PepDockOpt::get_position(std::vector<double> _lb, std::vecto
                                      param_list,
                                      width,
                                      peptide_ranges,
-                                     trans_spheres_obj,
+                                     trans_sp,
                                      spheres_number);
     do
     {
@@ -874,13 +1175,14 @@ void PepDockOpt::set_opt()
 
     std::vector<core::Size> protein_cm_index;
     //trans_spheres_obj.load_data("input_pdb/DR1-RA_0001.dat", 100);
-    trans_spheres_obj.load_data("input/pdb/1JWG_0001.dat", 100); //1JWG_0001_3
+    trans_spheres_obj1.load_data("input/pdb/1JWG_0001.dat", 100, false); //1JWG_0001_3
+    trans_spheres_obj2.load_data("input/pdb/1JWG_0001.dat", 100, true); //1JWG_0001_3
 
     // from file .dat
     protein_cm_index = param_list.get_protein_index_between_two_spheres(
-                           core::Vector(trans_spheres_obj.spheres.front().x, trans_spheres_obj.spheres.front().y, trans_spheres_obj.spheres.front().z),
-                           core::Vector(trans_spheres_obj.spheres.back().x, trans_spheres_obj.spheres.back().y, trans_spheres_obj.spheres.back().z),
-                           trans_spheres_obj.max_r,
+                           core::Vector(trans_spheres_obj1.spheres.front().x, trans_spheres_obj1.spheres.front().y, trans_spheres_obj1.spheres.front().z),
+                           core::Vector(trans_spheres_obj1.spheres.back().x, trans_spheres_obj1.spheres.back().y, trans_spheres_obj1.spheres.back().z),
+                           trans_spheres_obj1.max_r,
                            1000);
 
     // from pose first
@@ -948,43 +1250,57 @@ void PepDockOpt::set_opt()
     std::cout << "dim = " << dim << std::endl;
 }
 
-void PepDockOpt::start_position()
+void PepDockOpt::start_position1()
 {
     std::pair<size_t, size_t> spheres_number = std::make_pair(0, 1);
-    start.resize(opt_vector.size() + 7);
-    std::vector<double> sphere_center1 = {trans_spheres_obj.spheres[0].x, trans_spheres_obj.spheres[0].y, trans_spheres_obj.spheres[0].z};
-    std::vector<double> sphere_center2 = {trans_spheres_obj.spheres[1].x, trans_spheres_obj.spheres[1].y, trans_spheres_obj.spheres[1].z};
+    start1.resize(opt_vector.size() + 7);
+    std::vector<double> sphere_center1 = {trans_spheres_obj1.spheres[0].x, trans_spheres_obj1.spheres[0].y, trans_spheres_obj1.spheres[0].z};
+    std::vector<double> sphere_center2 = {trans_spheres_obj1.spheres[1].x, trans_spheres_obj1.spheres[1].y, trans_spheres_obj1.spheres[1].z};
 
     double rez = 0;
-    for(size_t i = 0; i != start.size(); i++)
+    for(size_t i = 0; i != start1.size(); i++)
         rez += std::pow(sphere_center1[i] - sphere_center2[i], 2.0);
     double width = 20.0/rez;//20.0/rez;
 
-    start = get_position(lb, ub, width, spheres_number);
+    start1 = get_position(lb, ub, width, trans_spheres_obj1, spheres_number);
+}
+void PepDockOpt::start_position2()
+{
+    std::pair<size_t, size_t> spheres_number = std::make_pair(0, 1);
+    start2.resize(opt_vector.size() + 7);
+    std::vector<double> sphere_center1 = {trans_spheres_obj1.spheres[0].x, trans_spheres_obj1.spheres[0].y, trans_spheres_obj1.spheres[0].z};
+    std::vector<double> sphere_center2 = {trans_spheres_obj1.spheres[1].x, trans_spheres_obj1.spheres[1].y, trans_spheres_obj1.spheres[1].z};
+
+    double rez = 0;
+    for(size_t i = 0; i != start2.size(); i++)
+        rez += std::pow(sphere_center1[i] - sphere_center2[i], 2.0);
+    double width = 20.0/rez;//20.0/rez;
+
+    start2 = get_position(lb, ub, width, trans_spheres_obj2, spheres_number);
 }
 void PepDockOpt::set_grid()
 {
     std::vector<std::vector<double>> best_samples;
 
-    std::vector<size_t> gridN(start.size());
-    gridN[0] = 18;//psi
-    gridN[1] = 14;//2
-    gridN[2] = 14;//2
-    gridN[3] = 14;//3
-    gridN[4] = 14;//3
-    gridN[5] = 14;//4
-    gridN[6] = 14;//4
+    gridN.resize(lb.size());
+    gridN[0] = 36;//psi
+    gridN[1] = 36;//2
+    gridN[2] = 36;//2
+    gridN[3] = 36;//3
+    gridN[4] = 36;//3
+    gridN[5] = 36;//4
+    gridN[6] = 36;//4
 
-    gridN[7] = 11;
-    gridN[8] = 11;
-    gridN[9] = 11;
-    gridN[10] = 14;
-    gridN[11] = 14;
-    gridN[12] = 14;
-    gridN[13] = 18;
+    gridN[7] = 100;
+    gridN[8] = 100;
+    gridN[9] = 100;
+    gridN[10] = 40;
+    gridN[11] = 40;
+    gridN[12] = 40;
+    gridN[13] = 100;
 
-    std::vector<std::vector<double>> grids(gridN.size());
-    std::vector<double> dx(gridN.size());
+    grids.resize(gridN.size());
+    dx.resize(gridN.size());
 
     for(size_t i = 0; i != grids.size(); i++)
     {
@@ -1001,30 +1317,39 @@ void PepDockOpt::set_grid()
         dx[i] = es/(grid_N*2);
     }
 
-    std::cout << "grids:" << std::endl;
-    for(size_t i = 0; i != grids.size(); i++)
-    {
-        for(size_t j = 0; j != grids[i].size(); j++)
-        {
-            std::cout << grids[i][j] << ' ';
-        }
-        std::cout << std::endl;
-        for(size_t j = 0; j != grids[i].size(); j++)
-        {
-            std::cout << grids[i][j] + dx[i] << ' ';
-        }
-        std::cout << std::endl;
-        std::cout << std::endl;
-    }
-    std::cout << std::endl;
+//    std::cout << "grids:" << std::endl;
+//    for(size_t i = 0; i != grids.size(); i++)
+//    {
+//        for(size_t j = 0; j != grids[i].size(); j++)
+//        {
+//            std::cout << grids[i][j] << ' ';
+//        }
+//        std::cout << std::endl;
+//        for(size_t j = 0; j != grids[i].size(); j++)
+//        {
+//            std::cout << grids[i][j] + dx[i] << ' ';
+//        }
+//        std::cout << std::endl;
+//        std::cout << std::endl;
+//    }
+//    std::cout << std::endl;
 
-    std::vector<char> startdot(start.size());
+
+    structures_triebased = std::make_shared<frag_type>();
+    structures_quant = std::make_shared<empirical_quantile::ImplicitQuantile<std::uint8_t, double>>(
+                           std::vector<double>(lb.size(), 0.0),
+                           std::vector<double>(ub.size(), 1.0),
+                           gridN);
+    structures_quant->set_sample_shared(structures_triebased);
+}
+void PepDockOpt::set_quantile1()
+{
+    std::vector<char> startdot(start1.size());
     for(size_t i = 0; i != startdot.size(); i++)
     {
-        auto pos1 = std::lower_bound(grids[i].begin(), grids[i].end(), start[i]);
+        auto pos1 = std::lower_bound(grids[i].begin(), grids[i].end(), start1[i]);
         startdot[i] = std::distance(grids[i].begin(), pos1) - 1;
     }
-
     ///
     std::vector<double> tt(startdot.size());
     for(size_t i = 0; i != tt.size(); i++)
@@ -1039,9 +1364,12 @@ void PepDockOpt::set_grid()
                               opt_vector,
                               param_list,
                               peptide_ranges,
-                              trans_spheres_obj,
+                              trans_spheres_obj1,
                               spheres_number) < 1.0)
     {
+        core::pose::PoseOP pep = pose[0].split_by_chain(pose[0].num_chains());
+        //to_allatom(*pep);
+        pep->dump_pdb("output/pdb/missed.pdb");
         std::cout << "miss the point!" << std::endl;
 
         /// finding the dot
@@ -1056,7 +1384,7 @@ void PepDockOpt::set_grid()
                 opt_vector,
                 param_list,
                 peptide_ranges,
-                trans_spheres_obj,
+                trans_spheres_obj1,
                 spheres_number);
 
         startdot = findTheDot_MultipleGrids_Moore(grids, pp, vv, dx, f);
@@ -1064,34 +1392,45 @@ void PepDockOpt::set_grid()
     }
 
 
-    /*for(size_t j = 0; j != startdot.size(); j++)
+    for(size_t j = 0; j != startdot.size(); j++)
     {
-        start[j] = grids[j][startdot[j]] + dx[j];
+        start1[j] = grids[j][startdot[j]] + dx[j];
     }
-    best_samples.push_back(start);
-
-    std::vector<std::vector<char>> points;
-    points.push_back(startdot);
-
-    std::set<std::vector<char>> visited;
-    std::vector<std::vector<char> > samples;*/
+//    best_samples.push_back(start);
+//
+//    std::vector<std::vector<char>> points;
+//    points.push_back(startdot);
+//
+//    std::set<std::vector<char>> visited;
+//    std::vector<std::vector<char> > samples;
 
     //boundaryFill4MultipleGrids(grids, points, visited, samples, dx);
 
-    std::function<double(std::vector<double>, int)> ff = std::bind(&Quadratic_ValueSimple3_omp,
-            std::placeholders::_1,
-            std::placeholders::_2,
-            pose,
-            pose_shift,
-            opt_vector,
-            param_list,
-            peptide_ranges,
-            trans_spheres_obj,
-            spheres_number);
+    /*  std::function<double(std::vector<double>, int)> ff = std::bind(&Quadratic_ValueSimple3_omp,
+              std::placeholders::_1,
+              std::placeholders::_2,
+              std::ref(pose),
+              std::ref(pose_shift),
+              std::ref(opt_vector),
+              std::ref(param_list),
+              std::ref(peptide_ranges),
+              std::ref(trans_spheres_obj),
+              spheres_number);
 
-    //boundaryFill4MultipleGrids_omp(grids, points, visited, samples, dx, ff, threads_number);
+      //boundaryFill4MultipleGrids_omp(grids, points, visited, samples, dx, ff, threads_number);
 
-    //std::cout << "samples size " << samples.size() << std::endl;
+
+      std::vector<std::uint8_t> st(startdot.size());
+      for(size_t i = 0; i != st.size(); i++)
+      {
+          st[i] = startdot[i];
+      }
+
+      structures_triebased = std::make_shared<frag_type>();
+      //structures_triebased->insert(st);
+      boundaryFill4MultipleGrids_omp_trie_only(grids, st, structures_triebased, dx, threads_number, ff);
+
+      std::cout << "samples size " << structures_triebased->get_total_count() << std::endl;*/
 
     // quant
     std::vector<std::uint8_t> st(startdot.size());
@@ -1099,16 +1438,111 @@ void PepDockOpt::set_grid()
     {
         st[i] = startdot[i];
     }
-    structures_triebased = std::make_shared<frag_type>();
     structures_triebased->insert(st);
+}
 
-    structures_quant = std::make_shared<empirical_quantile::ImplicitQuantile<std::uint8_t, double>>(
-                           std::vector<double>(lb.size(), 0.0),
-                           std::vector<double>(ub.size(), 1.0),
-                           gridN);
-    structures_quant->set_sample_shared(structures_triebased);
+void PepDockOpt::set_quantile2()
+{
+    std::vector<char> startdot(start2.size());
+    for(size_t i = 0; i != startdot.size(); i++)
+    {
+        auto pos1 = std::lower_bound(grids[i].begin(), grids[i].end(), start2[i]);
+        startdot[i] = std::distance(grids[i].begin(), pos1) - 1;
+    }
+    ///
+    std::vector<double> tt(startdot.size());
+    for(size_t i = 0; i != tt.size(); i++)
+    {
+        tt[i] = grids[i][startdot[i]] + dx[i];
+    }
+
+    std::pair<size_t, size_t> spheres_number = std::make_pair(0, 1);
+    if(Quadratic_ValueSimple3(tt,
+                              pose.front(),
+                              pose_shift.front(),
+                              opt_vector,
+                              param_list,
+                              peptide_ranges,
+                              trans_spheres_obj2,
+                              spheres_number) < 1.0)
+    {
+        core::pose::PoseOP pep = pose[0].split_by_chain(pose[0].num_chains());
+        //to_allatom(*pep);
+        pep->dump_pdb("output/pdb/missed.pdb");
+        std::cout << "miss the point!" << std::endl;
+
+        /// finding the dot
+        std::vector<std::vector<char>> pp;
+        pp.push_back(startdot);
+        std::set<std::vector<char>> vv;
+
+        std::function<double(std::vector<double>)> f = std::bind(&Quadratic_ValueSimple3,
+                std::placeholders::_1,
+                pose.front(),
+                pose_shift.front(),
+                opt_vector,
+                param_list,
+                peptide_ranges,
+                trans_spheres_obj2,
+                spheres_number);
+
+        startdot = findTheDot_MultipleGrids_Moore(grids, pp, vv, dx, f);
+        //std::cout << "the point!" << std::endl;
+    }
 
 
+    for(size_t j = 0; j != startdot.size(); j++)
+    {
+        start2[j] = grids[j][startdot[j]] + dx[j];
+    }
+//    best_samples.push_back(start);
+//
+//    std::vector<std::vector<char>> points;
+//    points.push_back(startdot);
+//
+//    std::set<std::vector<char>> visited;
+//    std::vector<std::vector<char> > samples;
+
+    //boundaryFill4MultipleGrids(grids, points, visited, samples, dx);
+
+    /*  std::function<double(std::vector<double>, int)> ff = std::bind(&Quadratic_ValueSimple3_omp,
+              std::placeholders::_1,
+              std::placeholders::_2,
+              std::ref(pose),
+              std::ref(pose_shift),
+              std::ref(opt_vector),
+              std::ref(param_list),
+              std::ref(peptide_ranges),
+              std::ref(trans_spheres_obj),
+              spheres_number);
+
+      //boundaryFill4MultipleGrids_omp(grids, points, visited, samples, dx, ff, threads_number);
+
+
+      std::vector<std::uint8_t> st(startdot.size());
+      for(size_t i = 0; i != st.size(); i++)
+      {
+          st[i] = startdot[i];
+      }
+
+      structures_triebased = std::make_shared<frag_type>();
+      //structures_triebased->insert(st);
+      boundaryFill4MultipleGrids_omp_trie_only(grids, st, structures_triebased, dx, threads_number, ff);
+
+      std::cout << "samples size " << structures_triebased->get_total_count() << std::endl;*/
+
+    // quant
+    std::vector<std::uint8_t> st(startdot.size());
+    for(size_t i = 0; i != st.size(); i++)
+    {
+        st[i] = startdot[i];
+    }
+    structures_triebased->insert(st);
+}
+void PepDockOpt::check()
+{
+    structures_triebased->fill_tree_count();
+    std::pair<size_t, size_t> spheres_number = std::make_pair(0, 1);
     // check
     std::mt19937_64 generator;
     generator.seed(1);
@@ -1130,7 +1564,6 @@ void PepDockOpt::set_grid()
     for(size_t j = 0; j != values01.size(); j++)
         structures_quant->transform(values01[j], sampled[j]);
 
-
     std::function<double(std::vector<double>)> fff = std::bind(&Quadratic_ValueSimple3,
             std::placeholders::_1,
             std::ref(pose.front()),
@@ -1138,25 +1571,184 @@ void PepDockOpt::set_grid()
             std::ref(opt_vector),
             std::ref(param_list),
             std::ref(peptide_ranges),
-            std::ref(trans_spheres_obj),
+            std::ref(trans_spheres_obj2),
             spheres_number);
 
     for(size_t j = 0; j != values01.size(); j++)
     {
         fff(sampled[j]);
-        /*Quadratic_ValueSimple3(sampled[j], pose.front(),
-                               pose_shift.front(),
-                               opt_vector,
-                               param_list,
-                               peptide_ranges,
-                               trans_spheres_obj,
-                               spheres_number);*/
+//        Quadratic_ValueSimple3(sampled[j], pose.front(),
+//                               pose_shift.front(),
+//                               opt_vector,
+//                               param_list,
+//                               peptide_ranges,
+//                               trans_spheres_obj,
+//                               spheres_number);
         core::pose::PoseOP pep = pose[0].split_by_chain(pose[0].num_chains());
         //to_allatom(*pep);
-        pep->dump_pdb("output/pdb/" + std::to_string(int(1e8) + j) + ".pdb");
+        pep->dump_pdb("output/pdb/" + std::to_string(int(1e4) + j) + ".pdb");
     }
-
 }
 
+void PepDockOpt::sphere_quant()
+{
+    spheres::box_trans trans_sp;
+    trans_sp.load_data("input/pdb/1JWG_0001.dat", 100, false);
+
+    //std::vector<size_t> grid_n = {50, 5, 5};
+    std::vector<size_t> grid_n = {500, 50, 50};
+    std::vector<double> llb = {trans_sp.space.x.first, trans_sp.space.y.first, trans_sp.space.z.first};
+    std::vector<double> uub = {trans_sp.space.x.second, trans_sp.space.y.second, trans_sp.space.z.second};
+
+    for(size_t i = 0; i != llb.size(); i++)
+    {
+        std::cout << llb[i] << '\t' << uub[i] << std::endl;
+    }
+
+    two_spheres_sample = std::make_shared<trie_based::TrieBased<trie_based::NodeCount<size_t>, size_t>>();
+    two_spheres_quant = std::make_shared<empirical_quantile::ImplicitQuantile<size_t, double>>(llb, uub, grid_n);
+
+    std::vector<std::vector<double>> gridss(grid_n.size());
+    std::vector<double> dxs(grid_n.size());
+
+    for(size_t i = 0; i != gridss.size(); i++)
+    {
+        double grid_N = grid_n[i];
+        std::vector<double> grid(grid_N);
+        double startp = llb[i];
+        double endp = uub[i];
+        double es = endp - startp;
+        for(size_t j = 0; j != grid.size(); j++)
+        {
+            grid[j] = startp + j*es/grid_N;
+        }
+        gridss[i] = grid;
+        dxs[i] = es/(grid_N*2);
+    }
+//    std::vector<std::vector<double>> sampled;
+    for(size_t i = 0; i != grid_n[0]; i++)
+    {
+        for(size_t j = 0; j != grid_n[1]; j++)
+        {
+            for(size_t k = 0; k != grid_n[2]; k++)
+            {
+                //std::cout << gridss[0][i] + dxs[0] << '\t' << gridss[1][j] + dxs[1] << '\t' << gridss[2][k] + dxs[2] << std::endl;
+                bool in = false;
+                for(size_t m = 0; m != trans_sp.spheres.size(); m++) // if 1 trans only to one first sphere
+                {
+                    double myDistance = std::sqrt(
+                                            std::pow(gridss[0][i] + dxs[0] - trans_sp.spheres[m].x, 2.0) +
+                                            std::pow(gridss[1][j] + dxs[1] - trans_sp.spheres[m].y, 2.0) +
+                                            std::pow(gridss[2][k] + dxs[2] - trans_sp.spheres[m].z, 2.0));
+                    if(myDistance < trans_sp.spheres[m].r)
+                    {
+                        in = true;
+                        break;
+                    }
+                }
+                if(in)
+                {
+                    std::vector<size_t> t = {i, j, k};
+                    if(!two_spheres_sample->search(t))
+                        two_spheres_sample->insert(t);
+                }
+            }
+        }
+    }
+
+    two_spheres_quant->set_sample_shared(two_spheres_sample);
+
+//    std::mt19937_64 generator;
+//    generator.seed(1);
+//    std::uniform_real_distribution<double> ureal01(0.0,1.0);
+//
+//    std::vector<std::vector<double>> values01;
+//    std::vector<std::vector<double>> sampled;
+//    std::vector<double> temp1(grid_n.size());
+//    std::vector<double> temp2(temp1.size());
+//    for(size_t i = 0; i != 10000; ++i)
+//    {
+//        for(size_t j = 0; j != temp1.size(); j++)
+//        {
+//            temp1[j] = ureal01(generator);
+////            if(temp1[j] > 0.5)
+////                temp1[j] = temp1[j]/2.0;
+//        }
+//        values01.push_back(temp1);
+//        sampled.push_back(temp2);
+//    }
+//    for(size_t j = 0; j != values01.size(); j++)
+//        two_spheres_quant->transform(values01[j], sampled[j]);
+//    std::cout << two_spheres_sample->get_total_count() << std::endl;
+//    write_default2d("spheres.data", sampled, 5);
+
+
+    start2.resize(opt_vector.size() + 7);
+    std::vector<double> sphere_center1 = {trans_spheres_obj1.spheres[0].x, trans_spheres_obj1.spheres[0].y, trans_spheres_obj1.spheres[0].z};
+    std::vector<double> sphere_center2 = {trans_spheres_obj1.spheres[1].x, trans_spheres_obj1.spheres[1].y, trans_spheres_obj1.spheres[1].z};
+
+    double rez = 0;
+    for(size_t i = 0; i != start2.size(); i++)
+        rez += std::pow(sphere_center1[i] - sphere_center2[i], 2.0);
+    double width = 20.0/rez;//20.0/rez;
+    
+    std::mt19937_64 generator_;
+    generator_.seed(1);
+    std::vector<double> start(lb.size());
+    for(size_t j = 0; j != start.size(); j++)
+    {
+        std::cout << lb[j] << '\t' << ub[j] << std::endl;
+        std::uniform_real_distribution<double> distribution(lb[j], ub[j]);
+        start[j] = distribution(generator_);
+    }
+
+    cso::CSO obj1(1000, lb.size(), 0.01, 1e6, generator_);
+    obj1.FitnessFunction = std::bind(&find_sphere_quant,
+                                     std::placeholders::_1,
+                                     two_spheres_quant,
+                                     std::ref(pose.front()),
+                                     std::ref(pose_shift.front()),
+                                     std::ref(opt_vector),
+                                     std::ref(param_list),
+                                     width,
+                                     std::ref(peptide_ranges),
+                                     std::ref(trans_sp),
+                                     1);
+    do
+    {
+        obj1.set_bounds(lb, ub);
+        obj1.init();
+        obj1.optimization();
+        std::cout << obj1.get_best() << std::endl;
+        start = obj1.get_best_vector();
+        //std::cin.get();
+    }
+    while(obj1.get_best() > -1.05);
+    start1 = start;
+    
+    cso::CSO obj2(1000, lb.size(), 0.01, 1e6, generator_);
+    obj2.FitnessFunction = std::bind(&find_sphere_quant,
+                                     std::placeholders::_1,
+                                     two_spheres_quant,
+                                     std::ref(pose.front()),
+                                     std::ref(pose_shift.front()),
+                                     std::ref(opt_vector),
+                                     std::ref(param_list),
+                                     width,
+                                     std::ref(peptide_ranges),
+                                     std::ref(trans_sp),
+                                     0);
+    do
+    {
+        obj2.set_bounds(lb, ub);
+        obj2.init();
+        obj2.optimization();
+        std::cout << obj2.get_best() << std::endl;
+        start = obj2.get_best_vector();
+        //std::cin.get();
+    }
+    while(obj2.get_best() > -1.05);
+    start2 = start;
+}
 
 }

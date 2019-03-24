@@ -34,8 +34,13 @@ int main(int argc, char *argv[])
     pepdockopt::PepDockOpt obj;
     obj.init(thread_num);
     obj.set_opt();
-    obj.start_position();
+//    obj.start_position1();
+//    obj.start_position2();
     obj.set_grid();
+    obj.sphere_quant();
+    obj.set_quantile1();
+    obj.set_quantile2();
+    obj.check();
     
 //    std::vector<double> lb(100,-100);
 //    std::vector<double> ub(100,100);

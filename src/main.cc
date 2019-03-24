@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
     obj.set_grid();
     obj.sphere_quant();
     obj.set_quantile1();
-    obj.set_quantile2();
+//    obj.set_quantile2();
     obj.check();
     
 //    std::vector<double> lb(100,-100);

@@ -565,7 +565,7 @@ double find_sphere_quant(std::vector<double> x,
         rez = 1.1;
     }
     else
-        rez = std::exp(-temp*width);
+        rez = std::exp(-temp*width);      
     return -rez;
 }
 

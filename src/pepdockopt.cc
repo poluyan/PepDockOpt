@@ -1358,6 +1358,11 @@ void PepDockOpt::init(size_t _threads_number)
         std::cout << "input pose " << fname << std::endl;
         core::import_pose::pose_from_file(input, fname);
         input.dump_pdb("output/pdb/input.pdb");
+        
+        spheres_fname = fname;
+        spheres_fname = spheres_fname.substr(0, fname.length()-4);
+        spheres_fname += ".dat";
+        std::cout << "spheres " << spheres_fname << std::endl;
     }
     else
     {
@@ -1413,7 +1418,8 @@ void PepDockOpt::set_opt()
     opt_vector.insert(opt_vector.end(), peptide_mc_p_info.begin(), peptide_mc_p_info.end());
 
     std::vector<core::Size> protein_cm_index;
-    trans_spheres_obj.load_data("input/pdb/DR1-RA_0001.dat", 100);
+    trans_spheres_obj.load_data(spheres_fname, 100);
+    //trans_spheres_obj.load_data("input/pdb/DR1-RA_0001.dat", 100);
     //trans_spheres_obj.load_data("input/pdb/1JWG_0001.dat", 100);
 //    trans_spheres_obj1.load_data("input/pdb/1JWG_0001.dat", 100, false); //1JWG_0001_3
 //    trans_spheres_obj2.load_data("input/pdb/1JWG_0001.dat", 100, true); //1JWG_0001_3

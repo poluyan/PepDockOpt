@@ -70,6 +70,7 @@ protected:
     std::vector<std::shared_ptr<empirical_quantile::ImplicitQuantile<int, double>>> phipsi_rama2_quantile;
     std::vector<std::shared_ptr<empirical_quantile::ImplicitQuantile<int, double>>> omega_quantile;
     
+    std::string spheres_fname;
     pepdockopt::spheres::box_trans trans_spheres_obj;
 //    pepdockopt::spheres::box_trans trans_spheres_obj1;
 //    pepdockopt::spheres::box_trans trans_spheres_obj2;

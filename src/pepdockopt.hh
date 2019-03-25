@@ -91,8 +91,6 @@ public:
     PepDockOpt();
     void init(size_t _threads_number);
     void set_opt();
-    void start_position1();
-    void start_position2();
     void set_grid();
     void set_quantile1();
     void set_quantile2();

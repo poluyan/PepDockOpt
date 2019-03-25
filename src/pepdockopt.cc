@@ -496,7 +496,7 @@ double find_sphere_quant(std::vector<double> x,
                          double width,
                          const pepdockopt::ranges &peptide_ranges,
                          const spheres::box_trans &trans_spheres_obj,
-                         size_t sphere_number)
+                         size_t sp1)
 {
     double pi = numeric::NumericTraits<core::Real>::pi();
     for(size_t i = std::get<1>(peptide_ranges.phipsi); i != std::get<2>(peptide_ranges.phipsi); i++)
@@ -544,28 +544,90 @@ double find_sphere_quant(std::vector<double> x,
 
     ///
 
-    std::vector<double> exponential_center =
+//    std::vector<double> exponential_center =
+//    {
+//        trans_spheres_obj.spheres[sphere_number].x,
+//        trans_spheres_obj.spheres[sphere_number].y,
+//        trans_spheres_obj.spheres[sphere_number].z
+//    };
+//    std::vector<double> exponential_center1 =
+//    {
+//        trans_spheres_obj.spheres[sphere_number ? 0 : 1].x,
+//        trans_spheres_obj.spheres[sphere_number ? 0 : 1].y,
+//        trans_spheres_obj.spheres[sphere_number ? 0 : 1].z
+//    };
+//
+//    core::Vector lCA = pose.residue(complex_stuff.get_peptide_last_index()).xyz("CA");
+//    core::Vector fCA = pose.residue(complex_stuff.get_peptide_first_index()).xyz("CA");
+//
+//    double rez = 0, rez1 = 0, rez2 = 0, rez3 = 0;
+//    double temp = 0, temp1 = 0, temp2 = 0, temp3 = 0;
+//    for(size_t i = 0; i != exponential_center.size(); i++)
+//    {
+//        rez += std::pow(lCA.at(i) - exponential_center[i], 2.0);
+//        rez1 += std::pow(fCA.at(i) - exponential_center1[i], 2.0);
+//        rez2 += std::pow(fCA.at(i) - exponential_center[i], 2.0);
+//        rez3 += std::pow(lCA.at(i) - exponential_center1[i], 2.0);
+//    }
+//    temp = std::sqrt(rez);
+//    temp1 = std::sqrt(rez1);
+//    temp2 = std::sqrt(rez2);
+//    temp3 = std::sqrt(rez3);
+//    if(temp < trans_spheres_obj.spheres[sphere_number].r && temp1 < trans_spheres_obj.spheres[sphere_number ? 0 : 1].r)
+//    {
+//        rez = 1.1;
+//    }
+//    else
+//        rez = std::exp(-temp*width);/* - std::exp(-temp1*width) + 0.00001*/;
+//    if(temp2 < trans_spheres_obj.spheres[sphere_number].r)
+//        rez = -1.0;
+//    if(temp3 < trans_spheres_obj.spheres[sphere_number ? 0 : 1].r)
+//        rez = -1.0;
+//    std::cout << -rez << std::endl;
+//    return -rez;
+
+    size_t sp2 = sp1 ? 0 : 1;
+    std::vector<double> center1 =
     {
-        trans_spheres_obj.spheres[sphere_number].x,
-        trans_spheres_obj.spheres[sphere_number].y,
-        trans_spheres_obj.spheres[sphere_number].z
+        trans_spheres_obj.spheres[sp1].x,
+        trans_spheres_obj.spheres[sp1].y,
+        trans_spheres_obj.spheres[sp1].z
+    };
+    std::vector<double> center2 =
+    {
+        trans_spheres_obj.spheres[sp2].x,
+        trans_spheres_obj.spheres[sp2].y,
+        trans_spheres_obj.spheres[sp2].z
     };
 
+    core::Vector fCA = pose.residue(complex_stuff.get_peptide_first_index()).xyz("CA");
     core::Vector lCA = pose.residue(complex_stuff.get_peptide_last_index()).xyz("CA");
 
-    double rez = 0;
-    double temp = 0;
-    for(size_t i = 0; i != exponential_center.size(); i++)
+    double rl1 = 0, rl2 = 0, rf1 = 0, rf2 = 0;
+    double dl1 = 0, dl2 = 0, df1 = 0, df2 = 0;
+    for(size_t i = 0; i != center1.size(); i++)
     {
-        rez += std::pow(lCA.at(i) - exponential_center[i], 2.0);
+        rl1 += std::pow(lCA.at(i) - center1[i], 2.0);
+        rl2 += std::pow(lCA.at(i) - center2[i], 2.0);
+        rf1 += std::pow(fCA.at(i) - center1[i], 2.0);
+        rf2 += std::pow(fCA.at(i) - center2[i], 2.0);
     }
-    temp = std::sqrt(rez);
-    if(temp < trans_spheres_obj.spheres[sphere_number].r)
+    dl1 = std::sqrt(rl1);
+    dl2 = std::sqrt(rl2);
+    df1 = std::sqrt(rf1);
+    df2 = std::sqrt(rf2);
+    double rez = 0;
+    //if(dl1 < trans_spheres_obj.spheres[sp1].r && df1 < trans_spheres_obj.spheres[sp2].r)
+    if(dl1 < trans_spheres_obj.spheres[sp1].r)
     {
         rez = 1.1;
     }
     else
-        rez = std::exp(-temp*width);      
+        rez = std::exp(-dl1*width);/* - std::exp(-temp1*width) + 0.00001*/;
+    if(df2 > df1)
+        rez = -1;
+    if(dl1 > dl2)
+        rez = -1;
     return -rez;
 }
 
@@ -631,17 +693,26 @@ double find_sphere_quant_check(std::vector<double> x,
         trans_spheres_obj.spheres[sphere_number].y,
         trans_spheres_obj.spheres[sphere_number].z
     };
+    std::vector<double> exponential_center1 =
+    {
+        trans_spheres_obj.spheres[sphere_number ? 0 : 1].x,
+        trans_spheres_obj.spheres[sphere_number ? 0 : 1].y,
+        trans_spheres_obj.spheres[sphere_number ? 0 : 1].z
+    };
 
     core::Vector lCA = pose.residue(complex_stuff.get_peptide_last_index()).xyz("CA");
+    core::Vector fCA = pose.residue(complex_stuff.get_peptide_first_index()).xyz("CA");
 
-    double rez = 0;
-    double temp = 0;
+    double rez = 0, rez1 = 0;
+    double temp = 0, temp1 = 0;
     for(size_t i = 0; i != exponential_center.size(); i++)
     {
         rez += std::pow(lCA.at(i) - exponential_center[i], 2.0);
+        rez1 += std::pow(fCA.at(i) - exponential_center1[i], 2.0);
     }
     temp = std::sqrt(rez);
-    if(temp < trans_spheres_obj.spheres[sphere_number].r)
+    temp1 = std::sqrt(rez1);
+    if(temp < trans_spheres_obj.spheres[sphere_number].r && temp1 < trans_spheres_obj.spheres[sphere_number ? 0 : 1].r)
     {
         rez = 1.1;
     }
@@ -1470,7 +1541,7 @@ void PepDockOpt::set_grid()
 
     for(size_t i = 0; i != lb.size(); i++)
     {
-        gridN[i] = 250;
+        gridN[i] = 240;
     }
     gridN[gridN.size() - 7] = 100;
     gridN[gridN.size() - 6] = 100;
@@ -1788,13 +1859,10 @@ void PepDockOpt::check()
 
 void PepDockOpt::sphere_quant()
 {
-    spheres::box_trans trans_sp;
-    trans_sp.load_data("input/pdb/1JWG_0001.dat", 100);
-
     //std::vector<size_t> grid_n = {50, 5, 5};
     std::vector<size_t> grid_n = {500, 50, 50};
-    std::vector<double> llb = {trans_sp.space.x.first, trans_sp.space.y.first, trans_sp.space.z.first};
-    std::vector<double> uub = {trans_sp.space.x.second, trans_sp.space.y.second, trans_sp.space.z.second};
+    std::vector<double> llb = {trans_spheres_obj.space.x.first, trans_spheres_obj.space.y.first, trans_spheres_obj.space.z.first};
+    std::vector<double> uub = {trans_spheres_obj.space.x.second, trans_spheres_obj.space.y.second, trans_spheres_obj.space.z.second};
 
     for(size_t i = 0; i != llb.size(); i++)
     {
@@ -1830,13 +1898,13 @@ void PepDockOpt::sphere_quant()
             {
                 //std::cout << gridss[0][i] + dxs[0] << '\t' << gridss[1][j] + dxs[1] << '\t' << gridss[2][k] + dxs[2] << std::endl;
                 bool in = false;
-                for(size_t m = 0; m != trans_sp.spheres.size(); m++) // if 1 trans only to one first sphere
+                for(size_t m = 0; m != trans_spheres_obj.spheres.size(); m++) // if 1 trans only to one first sphere
                 {
                     double myDistance = std::sqrt(
-                                            std::pow(gridss[0][i] + dxs[0] - trans_sp.spheres[m].x, 2.0) +
-                                            std::pow(gridss[1][j] + dxs[1] - trans_sp.spheres[m].y, 2.0) +
-                                            std::pow(gridss[2][k] + dxs[2] - trans_sp.spheres[m].z, 2.0));
-                    if(myDistance < trans_sp.spheres[m].r)
+                                            std::pow(gridss[0][i] + dxs[0] - trans_spheres_obj.spheres[m].x, 2.0) +
+                                            std::pow(gridss[1][j] + dxs[1] - trans_spheres_obj.spheres[m].y, 2.0) +
+                                            std::pow(gridss[2][k] + dxs[2] - trans_spheres_obj.spheres[m].z, 2.0));
+                    if(myDistance < trans_spheres_obj.spheres[m].r)
                     {
                         in = true;
                         break;
@@ -1886,7 +1954,7 @@ void PepDockOpt::sphere_quant()
     double rez = 0;
     for(size_t i = 0; i != start2.size(); i++)
         rez += std::pow(sphere_center1[i] - sphere_center2[i], 2.0);
-    double width = 20.0/rez;//20.0/rez;
+    double width = 20.0/std::sqrt(rez);//20.0/rez;
 
     std::mt19937_64 generator_;
     generator_.seed(1);
@@ -1908,7 +1976,7 @@ void PepDockOpt::sphere_quant()
                                      std::ref(param_list),
                                      width,
                                      std::ref(peptide_ranges),
-                                     std::ref(trans_sp),
+                                     std::ref(trans_spheres_obj),
                                      1);
     do
     {
@@ -1932,7 +2000,7 @@ void PepDockOpt::sphere_quant()
                                      std::ref(param_list),
                                      width,
                                      std::ref(peptide_ranges),
-                                     std::ref(trans_sp),
+                                     std::ref(trans_spheres_obj),
                                      0);
     do
     {

@@ -37,6 +37,6 @@ int main(int argc, char *argv[])
     obj.set_grid();
     obj.sphere_quant();
     obj.set_quantile1();
-    obj.set_quantile2();
-    obj.check();
+//    obj.set_quantile2();
+    //obj.check();
 }

@@ -683,6 +683,106 @@ double find_sphere_quant_check(std::vector<double> x,
     return rez;
 }
 
+double find_sphere_quant_check_omp(std::vector<double> x,
+                                   int th_id,
+                                   std::shared_ptr<empirical_quantile::ImplicitQuantile<size_t, double>> quant,
+                                   std::vector<core::pose::Pose>& pose,
+                                   std::vector<PoseShift> &shift_params,
+                                   const std::vector<opt_element> &opt_vector,
+                                   const ComplexInfoNseq &complex_stuff,
+                                   const pepdockopt::ranges &peptide_ranges,
+                                   const spheres::box_trans &trans_spheres_obj,
+                                   size_t sp1)
+{
+    double pi = numeric::NumericTraits<core::Real>::pi();
+    for(size_t i = std::get<1>(peptide_ranges.phipsi); i != std::get<2>(peptide_ranges.phipsi); i++)
+    {
+        x[i] = pi*(2.0*x[i] - 1.0);
+    }
+    for(size_t i = 0, end = opt_vector.size(); i < end; i++)
+    {
+        pose[th_id].set_dof(opt_vector[i].dofid, x[i]);
+    }
+
+    x = transform::peptide_quaternion(x, opt_vector, opt_vector.size());
+    //x = transform::twospheres(x, opt_vector.size(), trans_spheres_obj);
+
+    std::vector<double> t1 = {x[opt_vector.size()], x[opt_vector.size() + 1], x[opt_vector.size() + 2]};
+    std::vector<double> s1(t1.size());
+    quant->transform(t1, s1);
+    x[opt_vector.size()] = s1[0];
+    x[opt_vector.size() + 1] = s1[1];
+    x[opt_vector.size() + 2] = s1[2];
+
+    ///
+
+    core::Vector new_position = shift_params[th_id].InitPeptidePosition;
+    new_position.at(0) = x[opt_vector.size()];
+    new_position.at(1) = x[opt_vector.size() + 1];
+    new_position.at(2) = x[opt_vector.size() + 2];
+
+    shift_params[th_id].FlexibleJump.reset();
+
+    shift_params[th_id].FlexibleJump.set_rotation(shift_params[th_id].InitRm);
+    pose[th_id].set_jump(pose[th_id].num_jump(), shift_params[th_id].FlexibleJump);
+
+    numeric::Real current_distance(pose[th_id].residue(complex_stuff.get_peptide_first_index()).xyz("CA").distance(new_position));
+    shift_params[th_id].FlexibleJump.translation_along_axis(shift_params[th_id].UpstreamStub, new_position - pose[th_id].residue(complex_stuff.get_peptide_first_index()).xyz("CA"), current_distance);
+    pose[th_id].set_jump(pose[th_id].num_jump(), shift_params[th_id].FlexibleJump);
+
+    core::Vector peptide_c_alpha_centroid(pose[th_id].residue(complex_stuff.get_peptide_first_index()).xyz("CA"));
+    core::Vector axis(x[opt_vector.size() + 3], x[opt_vector.size() + 4], x[opt_vector.size() + 5]);
+
+    shift_params[th_id].SpinMover.rot_center(peptide_c_alpha_centroid);
+    shift_params[th_id].SpinMover.spin_axis(axis);
+    shift_params[th_id].SpinMover.angle_magnitude(x.back());
+    shift_params[th_id].SpinMover.apply(pose[th_id]);
+
+    ///
+
+    size_t sp2 = sp1 ? 0 : 1;
+    std::vector<double> center1 =
+    {
+        trans_spheres_obj.spheres[sp1].x,
+        trans_spheres_obj.spheres[sp1].y,
+        trans_spheres_obj.spheres[sp1].z
+    };
+    std::vector<double> center2 =
+    {
+        trans_spheres_obj.spheres[sp2].x,
+        trans_spheres_obj.spheres[sp2].y,
+        trans_spheres_obj.spheres[sp2].z
+    };
+
+    core::Vector fCA = pose[th_id].residue(complex_stuff.get_peptide_first_index()).xyz("CA");
+    core::Vector lCA = pose[th_id].residue(complex_stuff.get_peptide_last_index()).xyz("CA");
+
+    double rl1 = 0, rl2 = 0, rf1 = 0, rf2 = 0;
+    double dl1 = 0, dl2 = 0, df1 = 0, df2 = 0;
+    for(size_t i = 0; i != center1.size(); i++)
+    {
+        rl1 += std::pow(lCA.at(i) - center1[i], 2.0);
+        rl2 += std::pow(lCA.at(i) - center2[i], 2.0);
+        rf1 += std::pow(fCA.at(i) - center1[i], 2.0);
+        rf2 += std::pow(fCA.at(i) - center2[i], 2.0);
+    }
+    dl1 = std::sqrt(rl1);
+    dl2 = std::sqrt(rl2);
+    df1 = std::sqrt(rf1);
+    df2 = std::sqrt(rf2);
+    double rez = 0;
+    if(dl1 < trans_spheres_obj.spheres[sp1].r && df2 < trans_spheres_obj.spheres[sp2].r)
+        //if(dl1 < trans_spheres_obj.spheres[sp1].r)
+    {
+        rez = 1.1;
+    }
+    else
+        rez = 0;
+    if(df2 > df1 || dl1 > dl2)
+        rez = 0;
+    return rez;
+}
+
 
 template <typename T, typename V>
 struct cell
@@ -711,27 +811,30 @@ void boundaryFill4MultipleGrids_omp_trie_only(std::vector<std::vector<double>>& 
         std::function<double(std::vector<double>, int)> f)
 {
     /// generate all permutations
-    std::vector<int> ind;
-    ind.push_back(0);
-    ind.push_back(grids.size() - 4);
-    ind.push_back(grids.size() - 3);
-    ind.push_back(grids.size() - 2);
-    ind.push_back(grids.size() - 1);
-    std::vector<std::vector<char>> variable_values(ind.size(), std::vector<char>(3));
-    for(size_t i = 0; i != variable_values.size(); i++)
-    {
-        variable_values[i][0] = -1;
-        variable_values[i][1] = 0;
-        variable_values[i][2] = 1;
-    }
-    std::vector<std::vector<char>> permut = iterate(variable_values);
+//    std::vector<int> ind;
+//    ind.push_back(0);
+//    ind.push_back(grids.size() - 4);
+//    ind.push_back(grids.size() - 3);
+//    ind.push_back(grids.size() - 2);
+//    ind.push_back(grids.size() - 1);
+//    std::vector<std::vector<char>> variable_values(ind.size(), std::vector<char>(3));
+//    for(size_t i = 0; i != variable_values.size(); i++)
+//    {
+//        variable_values[i][0] = -1;
+//        variable_values[i][1] = 0;
+//        variable_values[i][2] = 1;
+//    }
+//    std::vector<std::vector<char>> permut = iterate(variable_values);
 
     int dim = grids.size();
     std::vector<double> dot(grids.size());
 
     trie_based::TrieBased<trie_based::Node<std::uint8_t>,std::uint8_t> visited;
+    visited.set_dimension(dim);
     trie_based::TrieBased<trie_based::Node<std::uint8_t>,std::uint8_t> points;
+    points.set_dimension(dim);
     trie_based::TrieBased<trie_based::Node<std::uint8_t>,std::uint8_t> not_coumputed;
+    not_coumputed.set_dimension(dim);
 
     for(size_t i = 0; i != dot.size(); i++)
     {
@@ -741,7 +844,7 @@ void boundaryFill4MultipleGrids_omp_trie_only(std::vector<std::vector<double>>& 
         points.insert(start);
     else
         return;
-
+    
     while(!points.empty() || !not_coumputed.empty())
     {
         while(!points.empty())
@@ -759,20 +862,20 @@ void boundaryFill4MultipleGrids_omp_trie_only(std::vector<std::vector<double>>& 
             for(size_t i = 0; i != point.size(); i++)
             {
                 point = init_point;
-                point[i] = point[i] + 1;
+                //point[i] = point[i] + 1;
+                int new_val = point[i] + 1;
 
-                if(point[i] < 0)
+                if(new_val < 0)
                 {
-                    point[i] = grids[i].size() - 1;
+                    new_val = grids[i].size() - 1;
                 }
-                if(point[i] > grids[i].size() - 1)
+                if(new_val > grids[i].size() - 1)
                 {
-                    point[i] = 0;
+                    new_val = 0;
                 }
-
+                point[i] = new_val;
 //                if(point[i] < 0 || point[i] > grids[i].size() - 1)
 //                    continue;
-
                 if(!visited.search(point) && !samples->search(point))
                 {
                     not_coumputed.insert(point);
@@ -781,16 +884,18 @@ void boundaryFill4MultipleGrids_omp_trie_only(std::vector<std::vector<double>>& 
             for(size_t i = 0; i != point.size(); i++)
             {
                 point = init_point;
-                point[i] = point[i] - 1;
+                //point[i] = point[i] - 1;
+                int new_val = point[i] - 1;
 
-                if(point[i] < 0)
+                if(new_val < 0)
                 {
-                    point[i] = grids[i].size() - 1;
+                    new_val = grids[i].size() - 1;
                 }
-                if(point[i] > grids[i].size() - 1)
+                if(new_val > grids[i].size() - 1)
                 {
-                    point[i] = 0;
+                    new_val = 0;
                 }
+                point[i] = new_val;
 
 //                if(point[i] < 0 || point[i] > grids[i].size() - 1)
 //                    continue;
@@ -802,38 +907,37 @@ void boundaryFill4MultipleGrids_omp_trie_only(std::vector<std::vector<double>>& 
             }
 
             ///Moore for 4 dots only
-            for(size_t i = 0; i != permut.size(); i++)
-            {
-                point = init_point;
-                bool flag = true;
-                for(size_t j = 0; j != variable_values.size(); j++)
-                {
-                    point[ind[j]] = point[ind[j]] + permut[i][j];
-//                    if(point[ind[j]] < 0 || point[ind[j]] > grids[ind[j]].size() - 1)
+//            for(size_t i = 0; i != permut.size(); i++)
+//            {
+//                point = init_point;
+//                bool flag = true;
+//                for(size_t j = 0; j != variable_values.size(); j++)
+//                {
+//                    point[ind[j]] = point[ind[j]] + permut[i][j];
+////                    if(point[ind[j]] < 0 || point[ind[j]] > grids[ind[j]].size() - 1)
+////                    {
+////                        flag = false;
+////                        break;
+////                    }
+//
+//                    if(point[ind[j]] < 0)
 //                    {
-//                        flag = false;
-//                        break;
+//                        point[ind[j]] = grids[ind[j]].size() - 1;
 //                    }
-
-                    if(point[ind[j]] < 0)
-                    {
-                        point[ind[j]] = grids[ind[j]].size() - 1;
-                    }
-                    if(point[ind[j]] > grids[ind[j]].size() - 1)
-                    {
-                        point[ind[j]] = 0;
-                    }
-                }
-                if(!flag)
-                    continue;
-
-                if(!visited.search(point) && !samples->search(point) && !not_coumputed.search(point))
-                {
-                    not_coumputed.insert(point);
-                }
-            }
+//                    if(point[ind[j]] > grids[ind[j]].size() - 1)
+//                    {
+//                        point[ind[j]] = 0;
+//                    }
+//                }
+//                if(!flag)
+//                    continue;
+//
+//                if(!visited.search(point) && !samples->search(point) && !not_coumputed.search(point))
+//                {
+//                    not_coumputed.insert(point);
+//                }
+//            }
         }
-
         size_t number_to_points = 0;
         while(!not_coumputed.empty())
         {
@@ -1603,36 +1707,38 @@ void PepDockOpt::set_quantile1()
 
     //boundaryFill4MultipleGrids(grids, points, visited, samples, dx);
 
-    /*std::function<double(std::vector<double>, int)> ff = std::bind(&find_sphere_quant_check,
-              std::placeholders::_1,
-              two_spheres_quant,
-              std::ref(pose.front()),
-              std::ref(pose_shift.front()),
-              std::ref(opt_vector),
-              std::ref(param_list),
-              std::ref(peptide_ranges),
-              std::ref(trans_spheres_obj),
-              1);*/
+    std::function<double(std::vector<double>, int)> ff = std::bind(&find_sphere_quant_check_omp,
+            std::placeholders::_1,
+            std::placeholders::_2,
+            two_spheres_quant,
+            std::ref(pose),
+            std::ref(pose_shift),
+            std::ref(opt_vector),
+            std::ref(param_list),
+            std::ref(peptide_ranges),
+            std::ref(trans_spheres_obj),
+            1);
 
     //boundaryFill4MultipleGrids_omp(grids, points, visited, samples, dx, ff, threads_number);
 
-//      std::vector<std::uint8_t> st(startdot.size());
-//      for(size_t i = 0; i != st.size(); i++)
-//      {
-//          st[i] = startdot[i];
-//      }
-    /*boundaryFill4MultipleGrids_omp_trie_only(grids, st, structures_triebased, dx, threads_number, ff);
-
-    std::cout << "samples size " << structures_triebased->get_total_count() << std::endl;*/
-
-
-    // quant
     std::vector<std::uint8_t> st(startdot.size());
     for(size_t i = 0; i != st.size(); i++)
     {
         st[i] = startdot[i];
     }
-    structures_triebased->insert(st);
+
+    boundaryFill4MultipleGrids_omp_trie_only(grids, st, structures_triebased, dx, threads_number, ff);
+
+    std::cout << "samples size " << structures_triebased->get_total_count() << std::endl;
+
+
+    // quant
+//    std::vector<std::uint8_t> st(startdot.size());
+//    for(size_t i = 0; i != st.size(); i++)
+//    {
+//        st[i] = startdot[i];
+//    }
+//    structures_triebased->insert(st);
 }
 
 void PepDockOpt::set_quantile2()

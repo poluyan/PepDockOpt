@@ -859,7 +859,7 @@ void boundaryFill4MultipleGrids_omp_trie_only(std::vector<std::vector<double>>& 
             samples->insert(point);
 
             auto init_point = point;
-            for(size_t i = 0; i != point.size(); i++)
+            for(size_t i = point.size()-7; i != point.size(); i++)
             {
                 point = init_point;
                 //point[i] = point[i] + 1;
@@ -881,7 +881,7 @@ void boundaryFill4MultipleGrids_omp_trie_only(std::vector<std::vector<double>>& 
                     not_coumputed.insert(point);
                 }
             }
-            for(size_t i = 0; i != point.size(); i++)
+            for(size_t i = point.size()-7; i != point.size(); i++)
             {
                 point = init_point;
                 //point[i] = point[i] - 1;
@@ -1590,10 +1590,10 @@ void PepDockOpt::set_grid()
     gridN[gridN.size() - 7] = 10;
     gridN[gridN.size() - 6] = 10;
     gridN[gridN.size() - 5] = 10;
-    gridN[gridN.size() - 4] = 60;
-    gridN[gridN.size() - 3] = 60;
-    gridN[gridN.size() - 2] = 60;
-    gridN[gridN.size() - 1] = 180;
+    gridN[gridN.size() - 4] = 10;
+    gridN[gridN.size() - 3] = 10;
+    gridN[gridN.size() - 2] = 10;
+    gridN[gridN.size() - 1] = 10;
 
     grids.resize(gridN.size());
     dx.resize(gridN.size());

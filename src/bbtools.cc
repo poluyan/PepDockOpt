@@ -77,5 +77,11 @@ void to_centroid(core::pose::Pose & pose)
     to_centroid_mover.apply(pose);
 }
 
+void to_allatom(core::pose::Pose & pose)
+{
+	protocols::simple_moves::SwitchResidueTypeSetMover to_all_atom_mover(core::chemical::FA_STANDARD);
+	to_all_atom_mover.apply(pose);
+}
+
 }
 }

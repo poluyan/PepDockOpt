@@ -29,6 +29,7 @@
 #include <transform.hh>
 #include <cso.hh>
 #include <data_io.hh>
+#include <bbtools.hh>
 
 #include <vector>
 #include <random>
@@ -811,29 +812,29 @@ void boundaryFill4MultipleGrids_omp_trie_only(std::vector<std::vector<double>>& 
         std::function<double(std::vector<double>, int)> f)
 {
     /// generate all permutations
-//    std::vector<int> ind;
-//    ind.push_back(0);
-//    ind.push_back(grids.size() - 4);
-//    ind.push_back(grids.size() - 3);
-//    ind.push_back(grids.size() - 2);
-//    ind.push_back(grids.size() - 1);
-//    std::vector<std::vector<char>> variable_values(ind.size(), std::vector<char>(3));
-//    for(size_t i = 0; i != variable_values.size(); i++)
-//    {
-//        variable_values[i][0] = -1;
-//        variable_values[i][1] = 0;
-//        variable_values[i][2] = 1;
-//    }
-//    std::vector<std::vector<char>> permut = iterate(variable_values);
+    std::vector<int> ind;
+    ind.push_back(0);
+    ind.push_back(grids.size() - 4);
+    ind.push_back(grids.size() - 3);
+    ind.push_back(grids.size() - 2);
+    ind.push_back(grids.size() - 1);
+    std::vector<std::vector<char>> variable_values(ind.size(), std::vector<char>(3));
+    for(size_t i = 0; i != variable_values.size(); i++)
+    {
+        variable_values[i][0] = -1;
+        variable_values[i][1] = 0;
+        variable_values[i][2] = 1;
+    }
+    std::vector<std::vector<char>> permut = iterate(variable_values);
 
     int dim = grids.size();
     std::vector<double> dot(grids.size());
 
-    trie_based::TrieBased<trie_based::Node<std::uint8_t>,std::uint8_t> visited;
+    trie_based::TrieBased<trie_based::NodeCount<std::uint8_t>,std::uint8_t> visited;
     visited.set_dimension(dim);
-    trie_based::TrieBased<trie_based::Node<std::uint8_t>,std::uint8_t> points;
+    trie_based::TrieBased<trie_based::NodeCount<std::uint8_t>,std::uint8_t> points;
     points.set_dimension(dim);
-    trie_based::TrieBased<trie_based::Node<std::uint8_t>,std::uint8_t> not_coumputed;
+    trie_based::TrieBased<trie_based::NodeCount<std::uint8_t>,std::uint8_t> not_coumputed;
     not_coumputed.set_dimension(dim);
 
     for(size_t i = 0; i != dot.size(); i++)
@@ -844,7 +845,7 @@ void boundaryFill4MultipleGrids_omp_trie_only(std::vector<std::vector<double>>& 
         points.insert(start);
     else
         return;
-    
+
     while(!points.empty() || !not_coumputed.empty())
     {
         while(!points.empty())
@@ -859,7 +860,7 @@ void boundaryFill4MultipleGrids_omp_trie_only(std::vector<std::vector<double>>& 
             samples->insert(point);
 
             auto init_point = point;
-            for(size_t i = point.size()-7; i != point.size(); i++)
+            for(size_t i = point.size()-4; i != point.size(); i++)
             {
                 point = init_point;
                 //point[i] = point[i] + 1;
@@ -881,7 +882,7 @@ void boundaryFill4MultipleGrids_omp_trie_only(std::vector<std::vector<double>>& 
                     not_coumputed.insert(point);
                 }
             }
-            for(size_t i = point.size()-7; i != point.size(); i++)
+            for(size_t i = point.size()-4; i != point.size(); i++)
             {
                 point = init_point;
                 //point[i] = point[i] - 1;
@@ -907,36 +908,38 @@ void boundaryFill4MultipleGrids_omp_trie_only(std::vector<std::vector<double>>& 
             }
 
             ///Moore for 4 dots only
-//            for(size_t i = 0; i != permut.size(); i++)
-//            {
-//                point = init_point;
+            for(size_t i = 0; i != permut.size(); i++)
+            {
+                point = init_point;
 //                bool flag = true;
-//                for(size_t j = 0; j != variable_values.size(); j++)
-//                {
-//                    point[ind[j]] = point[ind[j]] + permut[i][j];
-////                    if(point[ind[j]] < 0 || point[ind[j]] > grids[ind[j]].size() - 1)
-////                    {
-////                        flag = false;
-////                        break;
-////                    }
-//
-//                    if(point[ind[j]] < 0)
+                for(size_t j = 0; j != variable_values.size(); j++)
+                {
+                    //point[ind[j]] = point[ind[j]] + permut[i][j];
+                    int new_val = point[ind[j]] + permut[i][j];
+//                    if(new_val < 0 || new_val > grids[ind[j]].size() - 1)
 //                    {
-//                        point[ind[j]] = grids[ind[j]].size() - 1;
+//                        flag = false;
+//                        break;
 //                    }
-//                    if(point[ind[j]] > grids[ind[j]].size() - 1)
-//                    {
-//                        point[ind[j]] = 0;
-//                    }
-//                }
+
+                    if(new_val < 0)
+                    {
+                        new_val = grids[ind[j]].size() - 1;
+                    }
+                    if(new_val > grids[ind[j]].size() - 1)
+                    {
+                        new_val = 0;
+                    }
+                    point[ind[j]] = new_val;
+                }
 //                if(!flag)
 //                    continue;
-//
-//                if(!visited.search(point) && !samples->search(point) && !not_coumputed.search(point))
-//                {
-//                    not_coumputed.insert(point);
-//                }
-//            }
+
+                if(!visited.search(point) && !samples->search(point) && !not_coumputed.search(point))
+                {
+                    not_coumputed.insert(point);
+                }
+            }
         }
         size_t number_to_points = 0;
         while(!not_coumputed.empty())
@@ -1005,322 +1008,6 @@ void boundaryFill4MultipleGrids_omp_trie_only(std::vector<std::vector<double>>& 
     points.remove_tree();
     not_coumputed.remove_tree();
 }
-
-void boundaryFill4MultipleGrids_omp(std::vector<std::vector<double>>& grids,
-                                    std::vector<std::vector<char>> &pp,
-                                    std::set<std::vector<char>> &visited,
-                                    std::vector<std::vector<char>> &samples,
-                                    std::vector<double> &dx,
-                                    std::function<double(std::vector<double>, int)> f,
-                                    int total_threads)
-{
-    /// generate all permutations
-    std::vector<std::vector<char>> variable_values(pp.back().size() - 7, std::vector<char>(3));
-    for(size_t i = 0; i != variable_values.size(); i++)
-    {
-        variable_values[i][0] = -1;
-        variable_values[i][1] = 0;
-        variable_values[i][2] = 1;
-    }
-    std::vector<std::vector<char>> permut = iterate(variable_values);
-
-
-    std::set<cell<char,double>> computed;
-    std::vector<double> dot(pp.back().size());
-    std::vector<std::vector<double>> dots;
-    std::deque<cell<char,double>> points;
-    for(size_t i = 0; i != dot.size(); i++)
-    {
-        dot[i] = grids[i][pp.back()[i]] + dx[i];
-    }
-    points.push_back(cell<char,double>(pp.back(),-1.0));
-
-    std::vector<size_t> index;
-
-    while(!points.empty())
-    {
-        //auto t = points.front();
-        //points.pop_front();
-
-        auto visit_it = visited.find(points.front().dot);
-        if(!(visit_it == visited.end()))
-        {
-            points.pop_front();
-            continue;
-        }
-        visited.insert(points.front().dot);
-
-        if(points.front().value < 0)
-        {
-            index.clear();
-            dots.clear();
-
-            for(size_t i = 0; i < points.size(); i++)
-            {
-                auto comp_it = computed.find(points[i]);
-                if(comp_it == computed.end())
-                {
-                    index.push_back(i);
-                }
-                else
-                {
-                    points[i].value = comp_it->value;
-                }
-            }
-
-            std::cout << index.size() << std::endl;
-            dots.resize(index.size());
-
-            for(size_t i = 0; i < dots.size(); i++)
-            {
-                for(size_t j = 0; j != dot.size(); j++)
-                {
-                    dot[j] = grids[j][points[index[i]].dot[j]] + dx[j];
-                }
-                dots[i] = dot;
-                //points[index[i]].value = pdf(dot);
-            }
-            /*#pragma omp parallel for
-            for(size_t i = 0; i < index.size(); i++)
-            {
-                points[index[i]].value = Quadratic_ValueSimple3(dots[i], );
-            }*/
-
-            int omp_size = index.size();
-            while(omp_size%total_threads)
-            {
-                omp_size--;
-            }
-
-            int th_id = 0;
-            #pragma omp parallel private(th_id)
-            {
-                th_id = omp_get_thread_num();
-                if(th_id < total_threads)
-                {
-                    for(int i = th_id * omp_size / total_threads; i < (th_id + 1) * omp_size / total_threads; ++i)
-                    {
-                        points[index[i]].value = f(dots[i], th_id);
-                    }
-                }
-            }
-
-            for(size_t i = omp_size; i != index.size(); i++)
-            {
-                points[index[i]].value = f(dots[i], th_id);
-            }
-
-            for(size_t i = 0; i < index.size(); i++)
-            {
-                computed.insert(points[index[i]]);
-                //fe_count++;
-            }
-        }
-
-        if(points.front().value > 1.0)
-        {
-
-            if(!(samples.size()%100))
-            {
-                std::cout << "Samples   " << samples.size() << std::endl;
-                std::cout << "Points    " << points.size() << std::endl;
-                std::cout << "Computed  " << computed.size() << std::endl;
-                std::cout << "Visited   " << visited.size() << std::endl;
-                std::cout << std::endl;
-            }
-
-
-            std::vector<char> point = points.front().dot;
-            samples.push_back(point);
-
-            for(size_t i = 0; i != point.size(); i++)
-            {
-                point = points.front().dot;
-                point[i] = point[i] + 1;
-
-                if(point[i] < 0 || point[i] > grids[i].size() - 1)
-                    continue;
-
-                visit_it = visited.find(point);
-                if(visit_it == visited.end())
-                {
-                    points.push_back(cell<char,double>(point, -1.0));
-                }
-
-                //points.push_back(cell<char,float>(point, -1.0));
-            }
-            for(size_t i = 0; i != point.size(); i++)
-            {
-                point = points.front().dot;
-                point[i] = point[i] - 1;
-
-                if(point[i] < 0 || point[i] > grids[i].size() - 1)
-                    continue;
-
-                visit_it = visited.find(point);
-                if(visit_it == visited.end())
-                {
-                    points.push_back(cell<char,double>(point, -1.0));
-                }
-
-                //points.push_back(cell<char,float>(point, -1.0));
-            }
-
-            /*for(size_t i = 0; i != permut.size(); i++)
-            {
-                point = points.front().dot;
-                bool flag = true;
-                for(size_t j = 0; j != variable_values.size(); j++)
-                {
-                    point[j] = point[j] + permut[i][j];
-                    if(point[j] < 0 || point[j] > grids[j].size() - 1)
-                    {
-                        flag = false;
-                        break;
-                    }
-                }
-                if(!flag)
-                    continue;
-
-                visit_it = visited.find(point);
-                if(visit_it == visited.end())
-                {
-                    points.push_back(cell<char,double>(point, -1.0));
-                }
-            }*/
-        }
-        points.pop_front();
-
-        //if(samples.size() > 100000)
-        //{
-        //    break;
-        //}
-    }
-}
-
-/*
-class mc
-{
-public:
-    mc(std::vector<double> _lb, std::vector<double> _ub, size_t _fe_max)
-    {
-        lb = _lb;
-        ub = _ub;
-        dim = lb.size();
-        fe_max = _fe_max;
-    }
-    void set_generator_seed(int _seed)
-    {
-        generator.seed(_seed);
-    }
-    void run(core::pose::Pose& pose,
-             protocols::rigid::RigidBodyDeterministicSpinMover& SpinMover,
-             std::vector<opt_element> &opt_vector,
-             core::kinematics::Jump &flexible_jump,
-             core::kinematics::Stub &upstream_stub,
-             core::Vector &init_peptide_position,
-             core::kinematics::RT::Matrix &init_rm,
-             ComplexInfoNseq &complex_stuff,
-             double width,
-             pepdockopt::ranges peptide_ranges,
-             spheres::box_trans trans_spheres_obj,
-             std::pair<size_t, size_t> sphere_number)
-    {
-        best = std::numeric_limits<double>::max();
-        std::uniform_real_distribution<double> uniform_real01(0.0, 1.0);
-        std::vector<double> x(dim);
-        std::vector<double> xx(dim);
-        for(size_t i = 0; i != dim; i++)
-        {
-            std::uniform_real_distribution<double> uniform_real_dist(lb[i], ub[i]);
-            x[i] = uniform_real_dist(generator);
-        }
-        double F = Quadratic_ValueSimple2(x,
-                                          pose,
-                                          SpinMover,
-                                          opt_vector,
-                                          flexible_jump,
-                                          upstream_stub,
-                                          init_peptide_position,
-                                          init_rm,
-                                          complex_stuff,
-                                          width,
-                                          peptide_ranges,
-                                          trans_spheres_obj,
-                                          sphere_number);
-
-        double theta = 1.0;
-        double dtheta = 0.999;
-        std::vector<double> dx(lb.size());
-        for(size_t i = 0; i != dx.size(); i++)
-        {
-            dx[i] = (ub[i] - lb[i])/1000.0;
-        }
-        for(size_t fe_count = 0; fe_count != fe_max; fe_count++)
-        {
-            for(size_t i = 0; i != dim; i++)
-            {
-                std::uniform_real_distribution<double> uniform_real_dist(-dx[i], dx[i]);
-                xx[i] = x[i] + uniform_real_dist(generator);
-                if(xx[i] < lb[i])
-                    xx[i] = lb[i];
-                if(xx[i] > ub[i])
-                    xx[i] = ub[i];
-            }
-            double FF = Quadratic_ValueSimple2(xx,
-                                               pose,
-                                               SpinMover,
-                                               opt_vector,
-                                               flexible_jump,
-                                               upstream_stub,
-                                               init_peptide_position,
-                                               init_rm,
-                                               complex_stuff,
-                                               width,
-                                               peptide_ranges,
-                                               trans_spheres_obj,
-                                               sphere_number);
-            if(best > FF)
-            {
-                best = FF;
-                std::cout << best << std::endl;
-                best_vector = xx;
-            }
-            if(FF < F || uniform_real01(generator) < std::exp((F - FF) / theta))
-            {
-                std::swap(x, xx);
-                F = FF;
-            }
-            theta *= dtheta;
-            for(size_t i = 0; i != dim; i++)
-                dx[i] -= ((ub[i] - lb[i])/1000.0) / fe_max;
-        }
-    }
-    void set_generator(std::mt19937_64& _generator)
-    {
-        generator = _generator;
-    }
-    std::vector<double> get_best_vector()
-    {
-        return best_vector;
-    }
-    double get_best()
-    {
-        return best;
-    }
-    double (*FitnessFunction)(const std::vector<double> &x) = nullptr;
-private:
-    size_t dim;
-
-    size_t fe_max;
-    double best;
-    std::vector<double> best_vector;
-    std::vector<double> lb;
-    std::vector<double> ub;
-
-    std::mt19937_64 generator;
-};*/
-
 
 std::vector<double> PepDockOpt::get_position(std::vector<double> _lb,
         std::vector<double> _ub,
@@ -1455,7 +1142,10 @@ void PepDockOpt::init(size_t _threads_number)
     std::cout << param_list.get_extended_peptide_length() << std::endl;
 
     for(auto &i : pose)
+    {
         i = param_list.get_pose_complex(); //param_list.get_peptide();
+        bbtools::to_centroid(i);
+    }
 
     pose_shift.resize(threads_number);
     for(int i = 0; i != threads_number; i++)
@@ -1587,6 +1277,7 @@ void PepDockOpt::set_grid()
     {
         gridN[i] = 18;
     }
+    //gridN[0] = 18;
     gridN[gridN.size() - 7] = 10;
     gridN[gridN.size() - 6] = 10;
     gridN[gridN.size() - 5] = 10;
@@ -1726,10 +1417,37 @@ void PepDockOpt::set_quantile1()
     {
         st[i] = startdot[i];
     }
-
+    structures_triebased->set_dimension(st.size());
     boundaryFill4MultipleGrids_omp_trie_only(grids, st, structures_triebased, dx, threads_number, ff);
 
     std::cout << "samples size " << structures_triebased->get_total_count() << std::endl;
+
+//    size_t c = 0;
+//    while(!structures_triebased->empty())
+//    {
+//        std::cout << c << std::endl;
+//        auto point = structures_triebased->get_and_remove_last();
+//
+//        for(size_t i = 0; i != 100; i++, c++)
+//        {
+//            if(!structures_triebased->empty())
+//                point = structures_triebased->get_and_remove_last();
+//        }
+//
+//        if(structures_triebased->empty())
+//            break;
+//
+//        std::vector<double> crossover_u(point.size());
+//        for(size_t j = 0; j != crossover_u.size(); j++)
+//        {
+//            crossover_u[j] = grids[j][point[j]] + dx[j];
+//        }
+//        ff(crossover_u, 0);
+//        core::pose::PoseOP pep = pose[0].split_by_chain(pose[0].num_chains());
+//        bbtools::to_allatom(*pep);
+//        pep->dump_pdb("output/pdb/" + std::to_string(int(2e6) + c) + ".pdb");
+//        c++;
+//    }
 
 
     // quant
@@ -1813,39 +1531,64 @@ void PepDockOpt::set_quantile2()
 
     //boundaryFill4MultipleGrids(grids, points, visited, samples, dx);
 
-    /*  std::function<double(std::vector<double>, int)> ff = std::bind(&Quadratic_ValueSimple3_omp,
-              std::placeholders::_1,
-              std::placeholders::_2,
-              std::ref(pose),
-              std::ref(pose_shift),
-              std::ref(opt_vector),
-              std::ref(param_list),
-              std::ref(peptide_ranges),
-              std::ref(trans_spheres_obj),
-              spheres_number);
+    std::function<double(std::vector<double>, int)> ff = std::bind(&find_sphere_quant_check_omp,
+            std::placeholders::_1,
+            std::placeholders::_2,
+            two_spheres_quant,
+            std::ref(pose),
+            std::ref(pose_shift),
+            std::ref(opt_vector),
+            std::ref(param_list),
+            std::ref(peptide_ranges),
+            std::ref(trans_spheres_obj),
+            0);
 
-      //boundaryFill4MultipleGrids_omp(grids, points, visited, samples, dx, ff, threads_number);
+    //boundaryFill4MultipleGrids_omp(grids, points, visited, samples, dx, ff, threads_number);
 
-
-      std::vector<std::uint8_t> st(startdot.size());
-      for(size_t i = 0; i != st.size(); i++)
-      {
-          st[i] = startdot[i];
-      }
-
-      structures_triebased = std::make_shared<frag_type>();
-      //structures_triebased->insert(st);
-      boundaryFill4MultipleGrids_omp_trie_only(grids, st, structures_triebased, dx, threads_number, ff);
-
-      std::cout << "samples size " << structures_triebased->get_total_count() << std::endl;*/
-
-    // quant
     std::vector<std::uint8_t> st(startdot.size());
     for(size_t i = 0; i != st.size(); i++)
     {
         st[i] = startdot[i];
     }
-    structures_triebased->insert(st);
+    structures_triebased->set_dimension(st.size());
+    boundaryFill4MultipleGrids_omp_trie_only(grids, st, structures_triebased, dx, threads_number, ff);
+
+    std::cout << "samples size " << structures_triebased->get_total_count() << std::endl;
+
+//    size_t c = 0;
+//    while(!structures_triebased->empty())
+//    {
+//        std::cout << c << std::endl;
+//        auto point = structures_triebased->get_and_remove_last();
+//
+//        for(size_t i = 0; i != 100; i++, c++)
+//        {
+//            if(!structures_triebased->empty())
+//                point = structures_triebased->get_and_remove_last();
+//        }
+//
+//        if(structures_triebased->empty())
+//            break;
+//
+//        std::vector<double> crossover_u(point.size());
+//        for(size_t j = 0; j != crossover_u.size(); j++)
+//        {
+//            crossover_u[j] = grids[j][point[j]] + dx[j];
+//        }
+//        ff(crossover_u, 0);
+//        core::pose::PoseOP pep = pose[0].split_by_chain(pose[0].num_chains());
+//        bbtools::to_allatom(*pep);
+//        pep->dump_pdb("output/pdb/" + std::to_string(int(3e6) + c) + ".pdb");
+//        c++;
+//    }
+
+//    // quant
+//    std::vector<std::uint8_t> st(startdot.size());
+//    for(size_t i = 0; i != st.size(); i++)
+//    {
+//        st[i] = startdot[i];
+//    }
+//    structures_triebased->insert(st);
 }
 void PepDockOpt::check()
 {
@@ -1893,7 +1636,7 @@ void PepDockOpt::check()
 //                               trans_spheres_obj,
 //                               spheres_number);
         core::pose::PoseOP pep = pose[0].split_by_chain(pose[0].num_chains());
-        //to_allatom(*pep);
+        bbtools::to_allatom(*pep);
         pep->dump_pdb("output/pdb/" + std::to_string(int(1e4) + j) + ".pdb");
     }
 }
@@ -2054,6 +1797,72 @@ void PepDockOpt::sphere_quant()
     }
     while(obj2.get_best() > -1.05);
     start2 = start;
+}
+void PepDockOpt::set_objective()
+{
+    for(auto &i : pose)
+        i = param_list.get_pose_complex();
+}
+core::Real PepDockOpt::objective(const std::vector<double> &invec01, int th_id)
+{
+    std::vector<double> x(invec01.size());
+    structures_quant->transform(invec01, x);
+    
+    double pi = numeric::NumericTraits<core::Real>::pi();
+    for(size_t i = std::get<1>(peptide_ranges.phipsi); i != std::get<2>(peptide_ranges.phipsi); i++)
+    {
+        x[i] = pi*(2.0*x[i] - 1.0);
+    }
+    for(size_t i = 0, end = opt_vector.size(); i < end; i++)
+    {
+        pose[th_id].set_dof(opt_vector[i].dofid, x[i]);
+    }
+
+    x = transform::peptide_quaternion(x, opt_vector, opt_vector.size());
+
+    std::vector<double> t1 = {x[opt_vector.size()], x[opt_vector.size() + 1], x[opt_vector.size() + 2]};
+    std::vector<double> s1(t1.size());
+    two_spheres_quant->transform(t1, s1);
+    x[opt_vector.size()] = s1[0];
+    x[opt_vector.size() + 1] = s1[1];
+    x[opt_vector.size() + 2] = s1[2];
+
+    ///
+
+    core::Vector new_position = pose_shift[th_id].InitPeptidePosition;
+    new_position.at(0) = x[opt_vector.size()];
+    new_position.at(1) = x[opt_vector.size() + 1];
+    new_position.at(2) = x[opt_vector.size() + 2];
+
+    pose_shift[th_id].FlexibleJump.reset();
+
+    pose_shift[th_id].FlexibleJump.set_rotation(pose_shift[th_id].InitRm);
+    pose[th_id].set_jump(pose[th_id].num_jump(), pose_shift[th_id].FlexibleJump);
+
+    numeric::Real current_distance(pose[th_id].residue(param_list.get_peptide_first_index()).xyz("CA").distance(new_position));
+    pose_shift[th_id].FlexibleJump.translation_along_axis(pose_shift[th_id].UpstreamStub, new_position - pose[th_id].residue(param_list.get_peptide_first_index()).xyz("CA"), current_distance);
+    pose[th_id].set_jump(pose[th_id].num_jump(), pose_shift[th_id].FlexibleJump);
+
+    core::Vector peptide_c_alpha_centroid(pose[th_id].residue(param_list.get_peptide_first_index()).xyz("CA"));
+    core::Vector axis(x[opt_vector.size() + 3], x[opt_vector.size() + 4], x[opt_vector.size() + 5]);
+
+    pose_shift[th_id].SpinMover.rot_center(peptide_c_alpha_centroid);
+    pose_shift[th_id].SpinMover.spin_axis(axis);
+    pose_shift[th_id].SpinMover.angle_magnitude(x.back());
+    pose_shift[th_id].SpinMover.apply(pose[th_id]);
+
+    ///
+    (*score_func[th_id])(pose[th_id]);
+    core::Real complexed_energy = pose[th_id].energies().total_energy();
+    
+    pose[th_id].set_jump(pose[th_id].num_jump(), pose_shift[th_id].FlexibleJump);
+    pose_shift[th_id].FlexibleJump.translation_along_axis(pose_shift[th_id].UpstreamStub, new_position - pose[th_id].residue(param_list.get_peptide_first_index()).xyz("CA"), 10000);
+    pose[th_id].set_jump(pose[th_id].num_jump(), pose_shift[th_id].FlexibleJump);
+        
+    (*score_func[th_id])(pose[th_id]);
+    core::Real separated_energy = pose[th_id].energies().total_energy();
+
+    return complexed_energy - separated_energy;
 }
 
 }

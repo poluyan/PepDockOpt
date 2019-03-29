@@ -37,6 +37,10 @@ int main(int argc, char *argv[])
     obj.set_grid();
     obj.sphere_quant();
     obj.set_quantile1();
-//    obj.set_quantile2();
-    //obj.check();
+    obj.set_quantile2();
+    obj.check();
+    obj.set_objective();
+    
+    std::vector<double> x(14,0.5);
+    std::cout << obj.objective(x,0) << std::endl;
 }

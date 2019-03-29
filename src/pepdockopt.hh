@@ -99,6 +99,9 @@ public:
     void sphere_quant();
     
     std::vector<double> get_position(std::vector<double> _lb, std::vector<double> _ub, double width, spheres::box_trans trans_sp, std::pair<size_t, size_t> spheres_number); 
+    
+    void set_objective();
+    core::Real objective(const std::vector<double> &invec01, int th_id);
 };
 
 }

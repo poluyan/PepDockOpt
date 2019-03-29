@@ -25,7 +25,7 @@
 #include <pepdockopt.hh>
 
 int main(int argc, char *argv[])
-{
+{    
     devel::init(argc, argv);
     std::cout << "Start..." << std::endl;
 
@@ -41,6 +41,6 @@ int main(int argc, char *argv[])
     obj.check();
     obj.set_objective();
     
-    std::vector<double> x(14,0.5);
+    std::vector<double> x(obj.get_objective_dimension(),0.5);
     std::cout << obj.objective(x,0) << std::endl;
 }

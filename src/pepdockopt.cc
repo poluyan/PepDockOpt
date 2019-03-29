@@ -945,7 +945,7 @@ void boundaryFill4MultipleGrids_omp_trie_only(std::vector<std::vector<double>>& 
         while(!not_coumputed.empty())
         {
             std::vector<cell<std::uint8_t,char>> to_compute;
-            for(size_t i = 0; i != total_threads*100000; i++)
+            for(int i = 0; i != total_threads*100000; i++)
             {
                 if(not_coumputed.empty())
                     break;
@@ -1798,25 +1798,41 @@ void PepDockOpt::sphere_quant()
     while(obj2.get_best() > -1.05);
     start2 = start;
 }
-void PepDockOpt::set_objective()
-{
-    for(auto &i : pose)
-        i = param_list.get_pose_complex();
-}
+
 core::Real PepDockOpt::objective(const std::vector<double> &invec01, int th_id)
 {
     std::vector<double> x(invec01.size());
-    structures_quant->transform(invec01, x);
+    
+    std::vector<double> val01(structures_triebased->get_dimension());
+    for(size_t i = 0; i != structures_triebased->get_dimension() - 7; i++)
+        val01[i] = invec01[i];
+    for(size_t i = structures_triebased->get_dimension() - 7; i != structures_triebased->get_dimension(); i++)
+        val01[i] = invec01[i];
+    std::vector<double> sampled(structures_triebased->get_dimension());
+    structures_quant->transform(val01, sampled);
+    for(size_t i = 0; i != structures_triebased->get_dimension() - 7; i++)
+        x[i] = sampled[i];
+    for(size_t i = structures_triebased->get_dimension() - 7, j = opt_vector.size(); i != structures_triebased->get_dimension(); i++, j++)
+        x[j] = sampled[i];
+        
+    for(size_t i = 0; i != invec01.size(); i++)
+    {
+        std::cout << x[i] << std::endl;
+    }
     
     double pi = numeric::NumericTraits<core::Real>::pi();
     for(size_t i = std::get<1>(peptide_ranges.phipsi); i != std::get<2>(peptide_ranges.phipsi); i++)
     {
         x[i] = pi*(2.0*x[i] - 1.0);
     }
-    for(size_t i = 0, end = opt_vector.size(); i < end; i++)
+    for(size_t i = std::get<1>(peptide_ranges.phipsi); i != std::get<2>(peptide_ranges.phipsi); i++)
     {
         pose[th_id].set_dof(opt_vector[i].dofid, x[i]);
     }
+//    for(size_t i = 0, end = opt_vector.size(); i < end; i++)
+//    {
+//        pose[th_id].set_dof(opt_vector[i].dofid, x[i]);
+//    }
 
     x = transform::peptide_quaternion(x, opt_vector, opt_vector.size());
 
@@ -1863,6 +1879,106 @@ core::Real PepDockOpt::objective(const std::vector<double> &invec01, int th_id)
     core::Real separated_energy = pose[th_id].energies().total_energy();
 
     return complexed_energy - separated_energy;
+}
+
+void PepDockOpt::set_objective()
+{
+    for(auto &i : pose)
+        i = param_list.get_pose_complex();
+    
+    opt_vector.clear();
+    std::vector<core::Size> protein_full_index, peptide_full_index;
+    //for( size_t i = param_list.get_protein_first_index(); i <= param_list.get_protein_last_index(); i++ )
+    //    protein_full_index.push_back( i );
+    for(size_t i = param_list.get_peptide_first_index(); i <= param_list.get_peptide_last_index(); i++)
+        peptide_full_index.push_back(i);
+
+    std::vector<pepdockopt::opt_element> peptide_mc_p_info = pepdockopt::get_phi_psi_with_info(pose.front(), peptide_full_index, 2, true);
+    std::vector<opt_element> peptide_mc_o_info = pepdockopt::get_omega_with_info(pose.front(), peptide_full_index, 2, true);
+    std::vector<opt_element> peptide_all_chi_info = pepdockopt::get_peptide_all_chi_dof_with_info(pose.front(), peptide_full_index, 2, true);
+//    peptide_mc_p_info.pop_back();
+    
+    peptide_ranges.phipsi = std::make_tuple(true, opt_vector.size(), opt_vector.size() + peptide_mc_p_info.size());
+    opt_vector.insert(opt_vector.end(), peptide_mc_p_info.begin(), peptide_mc_p_info.end());
+    std::cout << "peptide_ranges.phipsi " << std::get<1>(peptide_ranges.phipsi) << '\t' << std::get<2>(peptide_ranges.phipsi) << std::endl;
+    
+    opt_vector.insert(opt_vector.end(), peptide_mc_o_info.begin(), peptide_mc_o_info.end());
+    opt_vector.insert(opt_vector.end(), peptide_all_chi_info.begin(), peptide_all_chi_info.end());
+
+    std::vector<core::Size> protein_cm_index;
+    // from file .dat
+    protein_cm_index = param_list.get_protein_index_between_two_spheres(
+                           core::Vector(trans_spheres_obj.spheres.front().x, trans_spheres_obj.spheres.front().y, trans_spheres_obj.spheres.front().z),
+                           core::Vector(trans_spheres_obj.spheres.back().x, trans_spheres_obj.spheres.back().y, trans_spheres_obj.spheres.back().z),
+                           trans_spheres_obj.max_r,
+                           1000);
+
+    // from pose first
+    //protein_cm_index = param_list.get_protein_index_between_two_spheres(
+    //                       core::Vector(pose.residue(param_list.get_peptide_first_index()).xyz("CA").x(), pose.residue(param_list.get_peptide_first_index()).xyz("CA").y(), pose.residue(param_list.get_peptide_first_index()).xyz("CA").z()),
+    //                       core::Vector(pose.residue(param_list.get_peptide_last_index()).xyz("CA").x(), pose.residue(param_list.get_peptide_last_index()).xyz("CA").y(), pose.residue(param_list.get_peptide_last_index()).xyz("CA").z()),
+    //                       trans_spheres_obj.max_r,
+    //                       1000);
+
+
+    //std::cout << "center: " << trans_spheres_obj.spheres.back().x << '\t' << trans_spheres_obj.spheres.back().y << '\t' << trans_spheres_obj.spheres.back().z << std::endl;
+
+
+    //
+    lb.clear();
+    ub.clear();
+    size_t k = 0;
+    for(size_t i = 0; i < peptide_mc_p_info.size(); i++, k++)
+    {
+        lb.push_back(0);
+        ub.push_back(1);
+    }
+    for(size_t i = 0; i < peptide_mc_o_info.size(); i++, k++)
+    {
+        lb.push_back(0);
+        ub.push_back(1);
+    }
+    for(size_t i = 0; i < peptide_all_chi_info.size(); i++, k++)
+    {
+        lb.push_back(0);
+        ub.push_back(1);
+    }
+
+//    for(size_t i = 0; i < protein_all_chi_info.size(); i++, k++)
+//    {
+//        lb.push_back(protein_all_chi_info[i].bounds.first);
+//        ub.push_back(protein_all_chi_info[i].bounds.second);
+//    }
+
+
+    for(size_t i = 0; i != 3; i++, k++)
+    {
+        lb.push_back(0.0);
+        ub.push_back(1.0);
+    }
+    for(size_t i = 0; i != 3; i++, k++)
+    {
+        lb.push_back(0.0);
+        ub.push_back(1.0);
+    }
+    lb.push_back(0.0);
+    ub.push_back(1.0);
+    k++;
+
+    if(k != opt_vector.size() + 7 || lb.size() - 7 != opt_vector.size() || ub.size() - 7 != opt_vector.size())
+    {
+        std::cout << "fail\n";
+        return;
+    }
+
+    std::cout << opt_vector.size() << std::endl;
+
+    int dim = opt_vector.size() + 7;
+    std::cout << "dim = " << dim << std::endl;
+}
+size_t PepDockOpt::get_objective_dimension()
+{
+    return opt_vector.size() + 7;
 }
 
 }

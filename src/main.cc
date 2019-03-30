@@ -39,8 +39,11 @@ int main(int argc, char *argv[])
     obj.set_quantile1();
     obj.set_quantile2();
     obj.check();
-    obj.set_objective();
     
-    std::vector<double> x(obj.get_objective_dimension(),0.5);
+    obj.set_objective();
+    obj.set_bbdep(72);
+    obj.set_omega_quantile(360);
+        
+    std::vector<double> x(obj.get_objective_dimension(),0.6);
     std::cout << obj.objective(x,0) << std::endl;
 }

@@ -28,8 +28,8 @@
 
 #include <complex.hh>
 #include <spheres.hh>
-
 #include <quantile.hh>
+#include <bbdep_sm.hh>
 
 #include <iostream>
 
@@ -68,7 +68,7 @@ protected:
     
     std::vector<std::shared_ptr<trie_based::TrieBased<trie_based::NodeCount<int>,int>>> phipsi_rama2_sample;
     std::vector<std::shared_ptr<empirical_quantile::ImplicitQuantile<int, double>>> phipsi_rama2_quantile;
-    std::vector<std::shared_ptr<empirical_quantile::ImplicitQuantile<int, double>>> omega_quantile;
+    std::shared_ptr<empirical_quantile::ImplicitQuantile<int, double>> omega_quantile;
     
     std::string spheres_fname;
     pepdockopt::spheres::box_trans trans_spheres_obj;
@@ -77,7 +77,7 @@ protected:
     
     std::shared_ptr<trie_based::TrieBased<trie_based::NodeCount<size_t>, size_t>> two_spheres_sample;
     std::shared_ptr<empirical_quantile::ImplicitQuantile<size_t, double>> two_spheres_quant;
-    
+        
     std::vector<size_t> gridN;
     std::vector<std::vector<double>> grids;
     std::vector<double> dx;
@@ -86,7 +86,15 @@ protected:
     std::shared_ptr<frag_type> structures_triebased;
     std::shared_ptr<empirical_quantile::ImplicitQuantile<std::uint8_t, double>> structures_quant;
     
+    bbdep::BBDEP_Dunbrack_sm bbdep_sm;
+    std::string pepprot_amino_acids;
+    void unique_aa();
+    
     void set_score_function();
+    
+    std::vector<core::Size> first_indices;
+    std::vector<core::Size> last_indices;
+    std::map<core::Size, std::pair<double, double>> cm_fixed_phipsi;
 public:
     PepDockOpt();
     void init(size_t _threads_number);
@@ -103,6 +111,10 @@ public:
     void set_objective();
     size_t get_objective_dimension();
     core::Real objective(const std::vector<double> &invec01, int th_id);
+    
+    void set_bbdep(size_t step/*std::string _bbdep_path*/);
+    
+    void set_omega_quantile(size_t step);
 };
 
 }

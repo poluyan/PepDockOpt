@@ -41,13 +41,23 @@ namespace transform
 //    bool do_chi;
 //};
 
-std::vector<double> bbdep_experiment_actual_states(
+std::vector<double> bbdep_experiment_actual_states_peptide(
     std::vector<double> x,
     const std::vector<pepdockopt::opt_element> &opt_vect,
     const pepdockopt::ranges &range,
     const pepdockopt::bbdep::BBDEP_Dunbrack_sm &bbdep_obj_sm,
-    size_t peptide_phipsi_2d_size);
-    
+    size_t peptide_first_index,
+    size_t peptide_last_index);
+
+std::vector<double> bbdep_experiment_actual_states_protein(
+    std::vector<double> x,
+    const std::vector<pepdockopt::opt_element> &opt_vect,
+    const pepdockopt::ranges &range,
+    const pepdockopt::bbdep::BBDEP_Dunbrack_sm &bbdep_obj_sm,
+    const std::map<core::Size, std::pair<double, double>> &cm_fixed_phipsi,
+    const std::vector<core::Size> &protein_first_indices,
+    const std::vector<core::Size> &protein_last_indices);
+
 std::vector<double> peptide_quaternion(std::vector<double> x, const std::vector<opt_element> &opt_vect, size_t opt_vect_size);
 
 std::vector<double> twospheres(std::vector<double> x, size_t opt_vect_size, const spheres::box_trans &spheres_obj);

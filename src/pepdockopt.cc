@@ -25,7 +25,6 @@
 #include <numeric/NumericTraits.hh>
 
 #include <pepdockopt.hh>
-#include <complex.hh>
 #include <transform.hh>
 #include <cso.hh>
 #include <data_io.hh>
@@ -1134,6 +1133,17 @@ void PepDockOpt::init(size_t _threads_number)
     }
     param_list.set_pose(input);
 
+    first_indices = param_list.get_protein_first_indices();
+    last_indices = param_list.get_protein_last_indices();
+
+    std::cout << "first indices ";
+    for(size_t i = 0; i != first_indices.size(); i++)
+        std::cout << first_indices[i] << ' ';
+    std::cout << std::endl;
+    std::cout << "last indices ";
+    for(size_t i = 0; i != last_indices.size(); i++)
+        std::cout << last_indices[i] << ' ';
+    std::cout << std::endl;
     //
 
     param_list.extend_peptide();
@@ -1159,44 +1169,18 @@ void PepDockOpt::init(size_t _threads_number)
 }
 void PepDockOpt::set_opt()
 {
-    std::vector<core::Size> protein_full_index, peptide_full_index;
-    //for( size_t i = param_list.get_protein_first_index(); i <= param_list.get_protein_last_index(); i++ )
-    //    protein_full_index.push_back( i );
+    std::vector<core::Size> peptide_full_index;
+
     for(size_t i = param_list.get_peptide_first_index(); i <= param_list.get_peptide_last_index(); i++)
         peptide_full_index.push_back(i);
 
     std::vector<pepdockopt::opt_element> peptide_mc_p_info = pepdockopt::get_phi_psi_with_info(pose.front(), peptide_full_index, 2, true);
-    //std::vector<opt_element> peptide_mc_o_info = get_omega_with_info(pose, peptide_full_index, 2, true);
-    //std::vector<opt_element> peptide_all_chi_info = get_peptide_all_chi_dof_with_info(pose, peptide_full_index, 2, true);
     peptide_mc_p_info.pop_back();
 
     peptide_ranges.phipsi = std::make_tuple(true, opt_vector.size(), opt_vector.size() + peptide_mc_p_info.size());
     opt_vector.insert(opt_vector.end(), peptide_mc_p_info.begin(), peptide_mc_p_info.end());
 
-    std::vector<core::Size> protein_cm_index;
     trans_spheres_obj.load_data(spheres_fname, 100);
-    //trans_spheres_obj.load_data("input/pdb/DR1-RA_0001.dat", 100);
-    //trans_spheres_obj.load_data("input/pdb/1JWG_0001.dat", 100);
-//    trans_spheres_obj1.load_data("input/pdb/1JWG_0001.dat", 100, false); //1JWG_0001_3
-//    trans_spheres_obj2.load_data("input/pdb/1JWG_0001.dat", 100, true); //1JWG_0001_3
-
-    // from file .dat
-    protein_cm_index = param_list.get_protein_index_between_two_spheres(
-                           core::Vector(trans_spheres_obj.spheres.front().x, trans_spheres_obj.spheres.front().y, trans_spheres_obj.spheres.front().z),
-                           core::Vector(trans_spheres_obj.spheres.back().x, trans_spheres_obj.spheres.back().y, trans_spheres_obj.spheres.back().z),
-                           trans_spheres_obj.max_r,
-                           1000);
-
-    // from pose first
-    //protein_cm_index = param_list.get_protein_index_between_two_spheres(
-    //                       core::Vector(pose.residue(param_list.get_peptide_first_index()).xyz("CA").x(), pose.residue(param_list.get_peptide_first_index()).xyz("CA").y(), pose.residue(param_list.get_peptide_first_index()).xyz("CA").z()),
-    //                       core::Vector(pose.residue(param_list.get_peptide_last_index()).xyz("CA").x(), pose.residue(param_list.get_peptide_last_index()).xyz("CA").y(), pose.residue(param_list.get_peptide_last_index()).xyz("CA").z()),
-    //                       trans_spheres_obj.max_r,
-    //                       1000);
-
-
-    //std::cout << "center: " << trans_spheres_obj.spheres.back().x << '\t' << trans_spheres_obj.spheres.back().y << '\t' << trans_spheres_obj.spheres.back().z << std::endl;
-
 
     //
     lb.clear();
@@ -1204,27 +1188,9 @@ void PepDockOpt::set_opt()
     size_t k = 0;
     for(size_t i = 0; i < peptide_mc_p_info.size(); i++, k++)
     {
-        lb.push_back(/*peptide_mc_p_info[i].bounds.first*/0);
-        ub.push_back(/*peptide_mc_p_info[i].bounds.second*/1);
+        lb.push_back(0);
+        ub.push_back(1);
     }
-    //for(size_t i = 0; i < peptide_mc_o_info.size(); i++, k++)
-    //{
-    //    lb.push_back(3.0 * numeric::NumericTraits<core::Real>::pi() - omega_delta);
-    //    ub.push_back(3.0 * numeric::NumericTraits<core::Real>::pi() + omega_delta);
-    //}
-
-//    for(size_t i = 0; i < peptide_all_chi_info.size(); i++, k++)
-//    {
-//        lb.push_back(peptide_all_chi_info[i].bounds.first);
-//        ub.push_back(peptide_all_chi_info[i].bounds.second);
-//    }
-
-//    for(size_t i = 0; i < protein_all_chi_info.size(); i++, k++)
-//    {
-//        lb.push_back(protein_all_chi_info[i].bounds.first);
-//        ub.push_back(protein_all_chi_info[i].bounds.second);
-//    }
-
 
     for(size_t i = 0; i != 3; i++, k++)
     {
@@ -1802,7 +1768,7 @@ void PepDockOpt::sphere_quant()
 core::Real PepDockOpt::objective(const std::vector<double> &invec01, int th_id)
 {
     std::vector<double> x(invec01.size());
-    
+
     std::vector<double> val01(structures_triebased->get_dimension());
     for(size_t i = 0; i != structures_triebased->get_dimension() - 7; i++)
         val01[i] = invec01[i];
@@ -1814,25 +1780,45 @@ core::Real PepDockOpt::objective(const std::vector<double> &invec01, int th_id)
         x[i] = sampled[i];
     for(size_t i = structures_triebased->get_dimension() - 7, j = opt_vector.size(); i != structures_triebased->get_dimension(); i++, j++)
         x[j] = sampled[i];
-        
-    for(size_t i = 0; i != invec01.size(); i++)
-    {
-        std::cout << x[i] << std::endl;
-    }
-    
+
     double pi = numeric::NumericTraits<core::Real>::pi();
-    for(size_t i = std::get<1>(peptide_ranges.phipsi); i != std::get<2>(peptide_ranges.phipsi); i++)
+    for(size_t i = std::get<1>(peptide_ranges.phipsi); i != std::get<2>(peptide_ranges.phipsi) - 1; i++)
     {
         x[i] = pi*(2.0*x[i] - 1.0);
     }
-    for(size_t i = std::get<1>(peptide_ranges.phipsi); i != std::get<2>(peptide_ranges.phipsi); i++)
+    x[std::get<2>(peptide_ranges.phipsi) - 1] = pi*(2.0*invec01[std::get<2>(peptide_ranges.phipsi) - 1] - 1.0);
+
+    std::vector<double> values01_omg(1), sampled_omg(1);
+    for(size_t i = std::get<1>(peptide_ranges.omega); i != std::get<2>(peptide_ranges.omega); i++)
     {
-        pose[th_id].set_dof(opt_vector[i].dofid, x[i]);
+        values01_omg.front() = invec01[i];
+        omega_quantile->transform(values01_omg, sampled_omg);
+        x[i] = sampled_omg.front();
     }
-//    for(size_t i = 0, end = opt_vector.size(); i < end; i++)
+    
+    for(size_t i = std::get<1>(peptide_ranges.chi); i != std::get<2>(peptide_ranges.chi); i++)
+        x[i] = invec01[i];
+    x = pepdockopt::transform::bbdep_experiment_actual_states_peptide(x, opt_vector, peptide_ranges,
+            bbdep_sm, param_list.get_peptide_first_index(), param_list.get_peptide_last_index());
+            
+    for(size_t i = std::get<1>(protein_ranges.chi); i != std::get<2>(protein_ranges.chi); i++)
+        x[i] = invec01[i];
+    x = pepdockopt::transform::bbdep_experiment_actual_states_protein(x, opt_vector, protein_ranges,
+            bbdep_sm, cm_fixed_phipsi, first_indices, last_indices);
+            
+    for(size_t i = 0; i != invec01.size(); i++)
+    {
+        std::cout << x[i] << '\t' << opt_vector[i].seqpos << std::endl;
+    }
+
+//    for(size_t i = std::get<1>(peptide_ranges.phipsi); i != std::get<2>(peptide_ranges.phipsi); i++)
 //    {
 //        pose[th_id].set_dof(opt_vector[i].dofid, x[i]);
 //    }
+    for(size_t i = 0, end = opt_vector.size(); i < end; i++)
+    {
+        pose[th_id].set_dof(opt_vector[i].dofid, x[i]);
+    }
 
     x = transform::peptide_quaternion(x, opt_vector, opt_vector.size());
 
@@ -1870,11 +1856,11 @@ core::Real PepDockOpt::objective(const std::vector<double> &invec01, int th_id)
     ///
     (*score_func[th_id])(pose[th_id]);
     core::Real complexed_energy = pose[th_id].energies().total_energy();
-    
+
     pose[th_id].set_jump(pose[th_id].num_jump(), pose_shift[th_id].FlexibleJump);
     pose_shift[th_id].FlexibleJump.translation_along_axis(pose_shift[th_id].UpstreamStub, new_position - pose[th_id].residue(param_list.get_peptide_first_index()).xyz("CA"), 10000);
     pose[th_id].set_jump(pose[th_id].num_jump(), pose_shift[th_id].FlexibleJump);
-        
+
     (*score_func[th_id])(pose[th_id]);
     core::Real separated_energy = pose[th_id].energies().total_energy();
 
@@ -1885,7 +1871,7 @@ void PepDockOpt::set_objective()
 {
     for(auto &i : pose)
         i = param_list.get_pose_complex();
-    
+
     opt_vector.clear();
     std::vector<core::Size> protein_full_index, peptide_full_index;
     //for( size_t i = param_list.get_protein_first_index(); i <= param_list.get_protein_last_index(); i++ )
@@ -1896,13 +1882,17 @@ void PepDockOpt::set_objective()
     std::vector<pepdockopt::opt_element> peptide_mc_p_info = pepdockopt::get_phi_psi_with_info(pose.front(), peptide_full_index, 2, true);
     std::vector<opt_element> peptide_mc_o_info = pepdockopt::get_omega_with_info(pose.front(), peptide_full_index, 2, true);
     std::vector<opt_element> peptide_all_chi_info = pepdockopt::get_peptide_all_chi_dof_with_info(pose.front(), peptide_full_index, 2, true);
-//    peptide_mc_p_info.pop_back();
-    
+
     peptide_ranges.phipsi = std::make_tuple(true, opt_vector.size(), opt_vector.size() + peptide_mc_p_info.size());
     opt_vector.insert(opt_vector.end(), peptide_mc_p_info.begin(), peptide_mc_p_info.end());
     std::cout << "peptide_ranges.phipsi " << std::get<1>(peptide_ranges.phipsi) << '\t' << std::get<2>(peptide_ranges.phipsi) << std::endl;
-    
+
+    peptide_ranges.omega = std::make_tuple(true, opt_vector.size(), opt_vector.size() + peptide_mc_o_info.size());
+    std::cout << "peptide_ranges.omega " << std::get<1>(peptide_ranges.omega) << '\t' << std::get<2>(peptide_ranges.omega) << std::endl;
     opt_vector.insert(opt_vector.end(), peptide_mc_o_info.begin(), peptide_mc_o_info.end());
+
+    size_t zero = 0;
+    peptide_ranges.chi = (peptide_all_chi_info.size()) ? std::make_tuple(true, opt_vector.size(), opt_vector.size() + peptide_all_chi_info.size()) : std::make_tuple(false, zero, zero);
     opt_vector.insert(opt_vector.end(), peptide_all_chi_info.begin(), peptide_all_chi_info.end());
 
     std::vector<core::Size> protein_cm_index;
@@ -1923,6 +1913,24 @@ void PepDockOpt::set_objective()
 
     //std::cout << "center: " << trans_spheres_obj.spheres.back().x << '\t' << trans_spheres_obj.spheres.back().y << '\t' << trans_spheres_obj.spheres.back().z << std::endl;
 
+    std::vector<opt_element> protein_all_chi_info = pepdockopt::get_peptide_all_chi_dof_with_info(pose.front(), protein_cm_index, 2, true);
+    size_t i1 = opt_vector.size();
+    size_t i2 = opt_vector.size() + protein_all_chi_info.size();
+    protein_ranges.chi = (protein_all_chi_info.size()) ? std::make_tuple(true, i1, i2) : std::make_tuple(false, zero, zero);
+    opt_vector.insert(opt_vector.end(), protein_all_chi_info.begin(), protein_all_chi_info.end());
+    
+    for(size_t i = 0; i != protein_cm_index.size(); i++)
+    {
+        if(pose.front().phi(protein_cm_index[i]) > 180.0 || pose.front().phi(protein_cm_index[i]) < -180.0)
+        {
+            std::cout << "protein_cm_index!" << std::endl;
+        }
+        if(pose.front().psi(protein_cm_index[i]) > 180.0 || pose.front().psi(protein_cm_index[i]) < -180.0)
+        {
+            std::cout << "protein_cm_index!" << std::endl;
+        }
+        cm_fixed_phipsi[protein_cm_index[i]] = std::make_pair(pose.front().phi(protein_cm_index[i]), pose.front().psi(protein_cm_index[i]));
+    }
 
     //
     lb.clear();
@@ -1943,12 +1951,11 @@ void PepDockOpt::set_objective()
         lb.push_back(0);
         ub.push_back(1);
     }
-
-//    for(size_t i = 0; i < protein_all_chi_info.size(); i++, k++)
-//    {
-//        lb.push_back(protein_all_chi_info[i].bounds.first);
-//        ub.push_back(protein_all_chi_info[i].bounds.second);
-//    }
+    for(size_t i = 0; i < protein_all_chi_info.size(); i++, k++)
+    {
+        lb.push_back(0);
+        ub.push_back(1);
+    }
 
 
     for(size_t i = 0; i != 3; i++, k++)
@@ -1975,10 +1982,66 @@ void PepDockOpt::set_objective()
 
     int dim = opt_vector.size() + 7;
     std::cout << "dim = " << dim << std::endl;
+    unique_aa();
+
+    peptide_ranges.do_chi = true;
+    protein_ranges.do_chi = true;
 }
 size_t PepDockOpt::get_objective_dimension()
 {
     return opt_vector.size() + 7;
 }
+
+void PepDockOpt::set_bbdep(size_t step/*std::string _bbdep_path*/)
+{
+    //bbdep_path = _bbdep_path;
+
+    std::string lib_path = basic::options::option[basic::options::OptionKeys::in::path::database].value_string() + "rotamer/ExtendedOpt1-5/";
+    std::cout << lib_path << std::endl;
+
+    bbdep_sm.set_path(lib_path);
+    //bbdep_sm.set_step(1000);
+    bbdep_sm.set_step(step);
+    bbdep_sm.initialize_all(true, pepprot_amino_acids, threads_number);
+
+//    pepsgo::bbdep::plot_chi1_all(bbdep_sm);
+
+//    pepsgo::bbind::BBIND_top obj;
+//    obj.set_path("/ssdwork/ProjectsCPP/mcmc/bbind_top500/");
+//    obj.initialize(2, 2, 2, 2,"SVCT");
+//    obj.initialize(2, 2, 2, 2,"WHNDFYIL");
+//    obj.initialize(2, 2, 2, 2,"MEQP");
+//    obj.initialize(2, 2, 2, 2,"RK");
+}
+
+void PepDockOpt::unique_aa()
+{
+    pepprot_amino_acids.clear();
+    std::set<char> aa_set;
+    for(size_t i = 0; i != opt_vector.size(); i++)
+    {
+        char aa = core::chemical::oneletter_code_from_aa(opt_vector[i].amino_acid);
+        if(aa_set.find(aa) == aa_set.end())
+            aa_set.insert(aa);
+    }
+    for(const auto &i : aa_set)
+    {
+        pepprot_amino_acids.push_back(i);
+    }
+    std::cout << "unique aa " << pepprot_amino_acids << std::endl;
+}
+
+void PepDockOpt::set_omega_quantile(size_t step)
+{
+    std::vector<size_t> grid_number = {step};
+    omega_quantile = std::make_shared<empirical_quantile::ImplicitQuantile<int, double>>(
+                         std::vector<double>(grid_number.size(), -numeric::NumericTraits<core::Real>::pi()),
+                         std::vector<double>(grid_number.size(), numeric::NumericTraits<core::Real>::pi()),
+                         grid_number
+                     );
+    std::vector<std::vector<int>> in_sample = {{0}, {int(step) - 1}};
+    omega_quantile->set_sample(in_sample);
+}
+
 
 }

@@ -95,6 +95,8 @@ protected:
     std::vector<core::Size> first_indices;
     std::vector<core::Size> last_indices;
     std::map<core::Size, std::pair<double, double>> cm_fixed_phipsi;
+    
+    size_t fe_count;
 public:
     PepDockOpt();
     void init(size_t _threads_number);
@@ -111,6 +113,7 @@ public:
     void set_objective();
     size_t get_objective_dimension();
     core::Real objective(const std::vector<double> &invec01, int th_id);
+    void objective_void(const std::vector<double> &invec01, std::string fname);
     
     void set_bbdep(size_t step/*std::string _bbdep_path*/);
     
